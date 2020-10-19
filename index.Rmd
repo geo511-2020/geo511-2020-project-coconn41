@@ -1,6 +1,6 @@
 ---
-title: "My Final Project Template"
-author: Your name here
+title: "GEO 511 Final Project"
+author: Collin O'Connor
 subtitle: Subtitle here if desired
 ---
 
