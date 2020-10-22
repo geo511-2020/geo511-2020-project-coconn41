@@ -12,11 +12,9 @@ Nymphdata <- read_csv("Nymphdata.csv")
 Adultdata <- read_csv("Adultdata.csv")
 
 ## Land use data
-LU <- runGdal("MCD12Q1",collection="006",
+LU <- getProduct("MCD12Q1",collection="006",
               tileH=12,
-              tileV=4,
-              begin = "2008.01.01",
-              end = "2008.01.02")
+              tileV=4)
 #end = "2019.12.31")
 
 LU <- as(LU,Class = "Spatial")
