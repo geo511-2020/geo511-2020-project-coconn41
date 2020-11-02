@@ -1,12 +1,13 @@
 # Libraries required
+#install.packages("devtools")
+#devtools::install_github("ropensci/FedData")
 library(readr)
 library(tidyverse)
 library(FedData)
 library(raster)
 library(sf)
-library(MODIS)
-library(MODISTools)
-library(curl)
+library(spData)
+library(leaflet)
 # Data gathering
 tdir=tempdir()
 ## Tick data
@@ -37,67 +38,106 @@ SpNYS=as(NYS,Class="Spatial")
 
 ## Land use data
 
-download.file(dataurl,destfile=file.path(tdir,"temp.zip"))
-unzip(file.path(tdir,"temp.zip"),exdir = tdir)
-#list.files(tdir)
-storm_data = read_sf(list.files(tdir,pattern='.shp',full.names = T))
+data(us_states)
+NY = us_states[17,]
+NLCD=get_nlcd(template = st_as_sf(NY),
+              label = "NYS",
+              year = 2016,
+              dataset='Land_Cover',
+              landmass="L48")
 
-NYSbb=data.frame(lat = c(40,45.2),
-                 lon = c(-71,-80))
-NYSbb_df <- st_as_sf(NYSbb, 
-                    coords = c("lon","lat"), 
-                    crs = 4326)
-NLCD = get_nlcd(template = NYSbb_df,
-        label="NYS",
-         dataset = "Land_Cover",
-         year = 2016,
-         force.redo = T)
+# Start plotting
+names(Adultdata)[6]="Total_Tested"
+Adult_BBdat=Adultdata[,1:7]
+Adult_BBdat$Pathogen="Borrelia burgdorferi"
+names(Adult_BBdat)[7]="Percent_Positive"
+Adult_Apdat=Adultdata[,c(1:6,8)]
+Adult_Apdat$Pathogen="Anaplasma phagocytophilum"
+names(Adult_Apdat)[7]="Percent_Positive"
+Adult_Bmiydat=Adultdata[,c(1:6,10)]
+Adult_Bmiydat$Pathogen="Borrelia miyamotoi"
+names(Adult_Bmiydat)[7]="Percent_Positive"
+Adult_Bmicdat=Adultdata[,c(1:6,9)]
+Adult_Bmicdat$Pathogen="Babesia microti"
+names(Adult_Bmicdat)[7]="Percent_Positive"
+Adultnewdat = rbind(Adult_BBdat,Adult_Apdat)
+Adultnewdat = rbind(Adultnewdat,Adult_Bmiydat)
+Adultnewdat = rbind(Adultnewdat,Adult_Bmicdat)
+Adultnewdat$`Percent Positiveby100`=Adultnewdat$`Percent_Positive`/100
+Adultnewdat$Totpos=round(Adultnewdat$`Total_Tested`*Adultnewdat$`Percent Positiveby100`)
+Adultnewdat = subset(Adultnewdat,is.na(Adultnewdat$Percent_Positive)==FALSE)
+
+Adulttotpos = Adultnewdat %>%
+        group_by(Year,Pathogen) %>%
+        summarize(sum(Totpos))
+Adulttotpos$`sum(Totpos)` = ifelse(is.na(Adulttotpos$`sum(Totpos)`)==TRUE,0,Adulttotpos$`sum(Totpos)`)
+Adulttottested = Adultnewdat %>%
+        group_by(Year,Pathogen) %>%
+        summarize(sum(Total_Tested))
+Adultgroupings=cbind(Adulttottested,Adulttotpos)
+Adultgroupings=Adultgroupings[,c(1:3,6)]
+Adultgroupings$percpos=(Adultgroupings$`sum(Totpos)`/Adultgroupings$`sum(Total_Tested)`)*100
+names(Adultgroupings)[1]="Year"
+names(Adultgroupings)[2]="Pathogen"
+Adultgroupings$`Life Stage`="Adult"
+
+names(Nymphdata)[6]="Total_Tested"
+Nymph_BBdat=Nymphdata[,1:7]
+Nymph_BBdat$Pathogen="Borrelia burgdorferi"
+names(Nymph_BBdat)[7]="Percent_Positive"
+Nymph_Apdat=Nymphdata[,c(1:6,8)]
+Nymph_Apdat$Pathogen="Anaplasma phagocytophilum"
+names(Nymph_Apdat)[7]="Percent_Positive"
+Nymph_Bmiydat=Nymphdata[,c(1:6,10)]
+Nymph_Bmiydat$Pathogen="Borrelia miyamotoi"
+names(Nymph_Bmiydat)[7]="Percent_Positive"
+Nymph_Bmicdat=Nymphdata[,c(1:6,9)]
+Nymph_Bmicdat$Pathogen="Babesia microti"
+names(Nymph_Bmicdat)[7]="Percent_Positive"
+Nymphnewdat = rbind(Nymph_BBdat,Nymph_Apdat)
+Nymphnewdat = rbind(Nymphnewdat,Nymph_Bmiydat)
+Nymphnewdat = rbind(Nymphnewdat,Nymph_Bmicdat)
+Nymphnewdat$`Percent Positiveby100`=Nymphnewdat$`Percent_Positive`/100
+Nymphnewdat$Totpos=round(Nymphnewdat$`Total_Tested`*Nymphnewdat$`Percent Positiveby100`)
+Nymphnewdat = subset(Nymphnewdat,is.na(Nymphnewdat$Percent_Positive)==FALSE)
+
+Nymphtotpos = Nymphnewdat %>%
+        group_by(Year,Pathogen) %>%
+        summarize(sum(Totpos))
+Nymphtotpos$`sum(Totpos)` = ifelse(is.na(Nymphtotpos$`sum(Totpos)`)==TRUE,0,Nymphtotpos$`sum(Totpos)`)
+Nymphtottested = Nymphnewdat %>%
+        group_by(Year,Pathogen) %>%
+        summarize(sum(Total_Tested))
+Nymphgroupings=cbind(Nymphtottested,Nymphtotpos)
+Nymphgroupings=Nymphgroupings[,c(1:3,6)]
+Nymphgroupings$percpos=(Nymphgroupings$`sum(Totpos)`/Nymphgroupings$`sum(Total_Tested)`)*100
+names(Nymphgroupings)[1]="Year"
+names(Nymphgroupings)[2]="Pathogen"
+Nymphgroupings$`Life Stage`="Nymph"
+
+All_groupings=rbind(Adultgroupings,Nymphgroupings)
+
+ggplot(data = All_groupings,aes(x=Year,y=percpos,color=Pathogen)) +
+        geom_line() +
+        ggtitle(expression(paste("Time Series Graph of ", italic("Ixodes scapularis")," Infectivity Rates (NYS)",sep=""))) +
+        theme_classic() +
+        geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7) +
+        geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7) +
+        facet_wrap(~`Life Stage`) +
+        scale_x_continuous(breaks=c(2008:2019))
+
+#Create tables/line graphs of pathogen prevalence by year by county compared to state average
+# That table will then be inserted into leaflet map
 
 
-if(file.exists("NLCD/NLCD_2016_Land_Cover_L48_20190424.img")==FALSE){
-NLCDurl="https://s3-us-west-2.amazonaws.com/mrlc/NLCD_2016_Land_Cover_L48_20190424.zip"
-download.file(NLCDurl,destfile = "NLCD.zip",cacheOK=TRUE)}
-a=raster("/Users/collinoconnor/Desktop/Rprojects/geo511-2020-project-coconn41/NLCD/NLCD_2016_Land_Cover_L48_20190424.img")
-NYS_NLCD=raster::mask(x = a,mask = SpNYS)
+# Leaflet of NYS
+County_Boundaries=st_transform(County_Boundaries,CRS("+proj=longlat +datum=WGS84"))
+leaflet() %>%
+        addTiles() %>%
+        addPolylines(data=County_Boundaries,
+                     color = "black",
+                     stroke = TRUE,
+                     weight=3) # %>%
+        #addCircleMarkers() this is where tables will pop up when clicked, see: https://stackoverflow.com/questions/57446415/table-on-click-in-r-shiny-leaflet-is-not-shown
 
-
-
-NLCD=get_nlcd(template = s,
-        label = "NYS",
-        year = 2016,
-        dataset='Land_Cover',
-        force.redo = T)
-
-install.packages("devtools")
-devtools::install_github("ropensci/FedData")
-
-a=mt_products()
-b=mt_bands('MCD12Q1')
-
-test=runGdal(product = "MCD12Q1",
-             extent = County_Boundaries,
-             begin = "2013-06-01",
-             end = "2013-06-02")
-
-
-test=mt_subset(df = County_Boundaries,
-             product = "MCD12Q1",
-             band = "LC_Prop1",
-             out_dir=getwd())
-
-
-LU <- getProduct("MCD12Q1",collection="006",
-              tileH=12,
-              tileV=4)
-#end = "2019.12.31")
-
-LU <- as(LU,Class = "Spatial")
-Productsavail <- getProduct()  
-
-getCollection("MCD12Q1")
-
-tfs <- runGdal(product = "MCD12Q1", collection = "006",
-               tileH = 12, tileV = 4, 
-               begin = "2016001", end = "2017002", 
-               SDSstring = "101100")
-
+# Do statistical testing using spearman rank corrs for each county as an observation
