@@ -60,18 +60,18 @@ names(Adult_Bmiydat)[7]="Percent_Positive"
 Adult_Bmicdat=Adultdata[,c(1:6,9)]
 Adult_Bmicdat$Pathogen="Babesia microti"
 names(Adult_Bmicdat)[7]="Percent_Positive"
-Adultnewdat = rbind(Adult_BBdat,Adult_Apdat)
-Adultnewdat = rbind(Adultnewdat,Adult_Bmiydat)
-Adultnewdat = rbind(Adultnewdat,Adult_Bmicdat)
-Adultnewdat$`Percent Positiveby100`=Adultnewdat$`Percent_Positive`/100
-Adultnewdat$Totpos=round(Adultnewdat$`Total_Tested`*Adultnewdat$`Percent Positiveby100`)
-Adultnewdat = subset(Adultnewdat,is.na(Adultnewdat$Percent_Positive)==FALSE)
+Adultnewdat1 = rbind(Adult_BBdat,Adult_Apdat)
+Adultnewdat1 = rbind(Adultnewdat1,Adult_Bmiydat)
+Adultnewdat1 = rbind(Adultnewdat1,Adult_Bmicdat)
+Adultnewdat1$`Percent Positiveby100`=Adultnewdat1$`Percent_Positive`/100
+Adultnewdat1$Totpos=round(Adultnewdat1$`Total_Tested`*Adultnewdat1$`Percent Positiveby100`)
+Adultnewdat2 = subset(Adultnewdat1,is.na(Adultnewdat1$Percent_Positive)==FALSE)
 
-Adulttotpos = Adultnewdat %>%
+Adulttotpos = Adultnewdat2 %>%
         group_by(Year,Pathogen) %>%
         summarize(sum(Totpos))
 Adulttotpos$`sum(Totpos)` = ifelse(is.na(Adulttotpos$`sum(Totpos)`)==TRUE,0,Adulttotpos$`sum(Totpos)`)
-Adulttottested = Adultnewdat %>%
+Adulttottested = Adultnewdat2 %>%
         group_by(Year,Pathogen) %>%
         summarize(sum(Total_Tested))
 Adultgroupings=cbind(Adulttottested,Adulttotpos)
@@ -94,18 +94,18 @@ names(Nymph_Bmiydat)[7]="Percent_Positive"
 Nymph_Bmicdat=Nymphdata[,c(1:6,9)]
 Nymph_Bmicdat$Pathogen="Babesia microti"
 names(Nymph_Bmicdat)[7]="Percent_Positive"
-Nymphnewdat = rbind(Nymph_BBdat,Nymph_Apdat)
-Nymphnewdat = rbind(Nymphnewdat,Nymph_Bmiydat)
-Nymphnewdat = rbind(Nymphnewdat,Nymph_Bmicdat)
-Nymphnewdat$`Percent Positiveby100`=Nymphnewdat$`Percent_Positive`/100
-Nymphnewdat$Totpos=round(Nymphnewdat$`Total_Tested`*Nymphnewdat$`Percent Positiveby100`)
-Nymphnewdat = subset(Nymphnewdat,is.na(Nymphnewdat$Percent_Positive)==FALSE)
+Nymphnewdat1 = rbind(Nymph_BBdat,Nymph_Apdat)
+Nymphnewdat1 = rbind(Nymphnewdat1,Nymph_Bmiydat)
+Nymphnewdat1 = rbind(Nymphnewdat1,Nymph_Bmicdat)
+Nymphnewdat1$`Percent Positiveby100`=Nymphnewdat1$`Percent_Positive`/100
+Nymphnewdat1$Totpos=round(Nymphnewdat1$`Total_Tested`*Nymphnewdat1$`Percent Positiveby100`)
+Nymphnewdat2 = subset(Nymphnewdat1,is.na(Nymphnewdat1$Percent_Positive)==FALSE)
 
-Nymphtotpos = Nymphnewdat %>%
+Nymphtotpos = Nymphnewdat2 %>%
         group_by(Year,Pathogen) %>%
         summarize(sum(Totpos))
 Nymphtotpos$`sum(Totpos)` = ifelse(is.na(Nymphtotpos$`sum(Totpos)`)==TRUE,0,Nymphtotpos$`sum(Totpos)`)
-Nymphtottested = Nymphnewdat %>%
+Nymphtottested = Nymphnewdat2 %>%
         group_by(Year,Pathogen) %>%
         summarize(sum(Total_Tested))
 Nymphgroupings=cbind(Nymphtottested,Nymphtotpos)
@@ -128,6 +128,52 @@ ggplot(data = All_groupings,aes(x=Year,y=percpos,color=Pathogen)) +
 
 #Create tables/line graphs of pathogen prevalence by year by county compared to state average
 # That table will then be inserted into leaflet map
+
+Ad_county_totpos = Adultnewdat1 %>%
+        group_by(Year,Pathogen,County) %>%
+        summarize(sum(Totpos))
+Ad_county_tottested = Adultnewdat1 %>%
+        group_by(Year,Pathogen,County) %>%
+        summarize(sum(Total_Tested))
+Ad_county_groupings=cbind(Ad_county_tottested,Ad_county_totpos)
+Ad_county_groupings=Ad_county_groupings[,c(1:4,8)]
+Ad_county_groupings$percpos=Ad_county_groupings$`sum(Totpos)`/(Ad_county_groupings$`sum(Total_Tested)`)*100
+names(Ad_county_groupings)=c("Year","Pathogen","County","sum(Total_Tested)","sum(Totpos)","percpos")
+Ad_county_groupings$`Life Stage`="Adult"
+
+Ny_county_totpos = Nymphnewdat1 %>%
+        group_by(Year,Pathogen,County) %>%
+        summarize(sum(Totpos))
+Ny_county_tottested = Nymphnewdat1 %>%
+        group_by(Year,Pathogen,County) %>%
+        summarize(sum(Total_Tested))
+Ny_county_groupings=cbind(Ny_county_tottested,Ny_county_totpos)
+Ny_county_groupings=Ny_county_groupings[,c(1:4,8)]
+Ny_county_groupings$percpos=Ny_county_groupings$`sum(Totpos)`/(Ny_county_groupings$`sum(Total_Tested)`)*100
+names(Ny_county_groupings)=c("Year","Pathogen","County","sum(Total_Tested)","sum(Totpos)","percpos")
+Ny_county_groupings$`Life Stage`="Nymph"
+
+All_county_groupings=rbind(Ad_county_groupings,Ny_county_groupings)
+All_county_groupings = subset(All_county_groupings,All_county_groupings$`sum(Total_Tested)`>0)
+All_county_groupings = subset(All_county_groupings,is.na(All_county_groupings$`sum(Totpos)`)==FALSE)
+Allcnts=as.data.frame(list(unique(All_county_groupings$County)))
+names(Allcnts)[1]="County"
+Allcnts$ID=c(1:length(unique(All_county_groupings$County)))
+All_county_groupings=left_join(All_county_groupings,Allcnts)
+for(i in 1:length(unique(All_county_groupings$County))){
+        a=subset(All_county_groupings,All_county_groupings$ID==7)
+        ggplot(data=a,aes(x=Year,y=percpos,color=Pathogen)) +
+                geom_line() +
+                ggtitle(expression(paste(italic("Ixodes scapularis")," Infectivity Rates in",i,sep=""))) +
+                theme_classic() +
+                geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7) +
+                geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7) +
+                facet_wrap(~`Life Stage`) +
+                scale_x_continuous(breaks=c(2008:2019))
+        ggsave(paste(i," County Line Graph.pdf",sep = ""))
+}
+
+## ^ need to figure out conditional county name paste for each i
 
 
 # Leaflet of NYS
