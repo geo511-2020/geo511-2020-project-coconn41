@@ -8,6 +8,7 @@ library(raster)
 library(sf)
 library(spData)
 library(leaflet)
+library(purrr)
 # Data gathering
 tdir=tempdir()
 ## Tick data
@@ -172,10 +173,15 @@ for(i in 1:length(unique(All_county_groupings$County))){
                 scale_x_continuous(breaks=c(2008:2019))
         ggsave(paste(i," County Line Graph.pdf",sep = ""))
 }
+test1 = All_county_groupings %>% 
+        nest(-County) %>% mutate(ggplots = map(data, 
+                             ~ggplot(data = .,aes(x=Year,y=percpos,color=Pathogen)) + geom_line()))
+print(test1[[3]])
+map(test1, ~ggplot(,aes(x=Year,y=percpos,color=Pathogen))+geom_line())
 
 ## ^ need to figure out conditional county name paste for each i
-
-
+# use purr package
+#https://stackoverflow.com/questions/58204452/printing-ggplot-with-purrr-map
 # Leaflet of NYS
 County_Boundaries=st_transform(County_Boundaries,CRS("+proj=longlat +datum=WGS84"))
 leaflet() %>%
