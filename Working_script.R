@@ -9,6 +9,12 @@ library(sf)
 library(spData)
 library(leaflet)
 library(purrr)
+library(MODIS)
+library(MODISTools)
+library(gdalUtilities)
+library(gdalUtils)
+library(rgdal)
+library(tmap)
 # Data gathering
 tdir=tempdir()
 ## Tick data
@@ -34,10 +40,65 @@ simpSpNYS=st_simplify(NYS,
                       dTolerance=100)
 SpNYS=as(NYS,Class="Spatial")
 
+MODIStsp::MODIStsp_get_prodlayers("LandCover_Type_Yearly_500m (MCD12Q1)")
+NYSbb=data.frame(lat = c(40,45.2),
+                 lon = c(-71,-80))
+NYSbb_df <- st_as_sf(NYSbb, 
+                     coords = c("lon","lat"), 
+                     crs = 4326)
+username=source("MODISusername.R")
+password=source("MODISpassword.R")
+MODIStsp::MODIStsp(gui=FALSE,
+                   selprod = "LandCover_Type_Yearly_500m (MCD12Q1)",
+                   bandsel = "Land Cover Type 1 (IGBP)*",
+                   start_date = "2008.01.01",
+                   end_date = "2020.12.31",
+                   bbox = NYSbb_df,
+                   user = username$value,
+                   password = password$value,
+                   reprocess = TRUE)
+a=as.data.frame(gdalUtils::get_subdatasets(paste(tdir,
+        "/MODIStsp/HDFs/MCD12Q1.A2014001.h18v04.006.2018146020544.hdf",sep="")))
 
+gdal_translate(a[6,1],dst_dataset = "name.tif")
+b=raster('name.tif')
+crs(b)="+proj=utm +zone=18 +datum=NAD83 +units=m +no_defs" 
+plot(b)
+plot(SpNYS,add=T)
+
+tm_shape(b)+tm_raster()+tm_graticules()+
+        tm_shape(SpNYS)+tm_borders()
+        tmap_mode("view")
+
+
+
+
+
+
+
+
+
+
+
+rgdal::readGDAL(paste(tdir,"/MODIStsp/HDFs/MCD12Q1.A2008001.h18v04.006.2018145230343.hdf",sep=""))
+
+a=runGdal(product = "MCD12Q1", 
+          collection = "006",forceDownload = T,extent = NY,
+        begin = "2016001", end = "2017002", 
+        SDSstring = "101100")
+
+
+        
+gdalinfo(datasetname = paste(tdir,"/MODIS_ARC/MODIS/MCD12Q1.006/2016.01.01/MCD12Q1.A2016001.h12v04.006.2018149125204.hdf",sep=""))
+MODISTools::MODISG
+gdal_translate(a,dst_dataset = "test.tif")
 
 
 ## Land use data
+
+
+
+
 
 data(us_states)
 NY = us_states[17,]
