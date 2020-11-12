@@ -1,6 +1,7 @@
 ---
 title: "GEO 511 Final Project"
 author: Collin O'Connor
+always_allow_html: yes
 ---
 <style>
 .leaflet-popup-content > img {
