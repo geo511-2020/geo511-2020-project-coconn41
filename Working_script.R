@@ -287,10 +287,5 @@ leaflet() %>%
 
 
 
-,
-                     color = "black",
-                     stroke = TRUE,
-                     weight=3) # %>%
-        #addCircleMarkers() this is where tables will pop up when clicked, see: https://stackoverflow.com/questions/57446415/table-on-click-in-r-shiny-leaflet-is-not-shown
 
 # Do statistical testing using spearman rank corrs for each county as an observation
