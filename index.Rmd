@@ -92,7 +92,7 @@ SpNYS=as(NYS,Class="Spatial")
 ```
 
 
-```{r, average_plot,eval=T,echo=F}
+```{r, average_plot,eval=T,echo=T}
 names(Adultdata)[6]="Total_Tested"
 Adult_BBdat=Adultdata[,1:7]
 Adult_BBdat$Pathogen="Borrelia burgdorferi"
