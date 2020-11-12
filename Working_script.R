@@ -15,6 +15,7 @@ library(gdalUtilities)
 library(gdalUtils)
 library(rgdal)
 library(tmap)
+library(glue)
 # Data gathering
 tdir=tempdir()
 ## Tick data
@@ -40,37 +41,35 @@ simpSpNYS=st_simplify(NYS,
                       dTolerance=100)
 SpNYS=as(NYS,Class="Spatial")
 
-MODIStsp::MODIStsp_get_prodlayers("LandCover_Type_Yearly_500m (MCD12Q1)")
-NYSbb=data.frame(lat = c(40,45.2),
-                 lon = c(-71,-80))
-NYSbb_df <- st_as_sf(NYSbb, 
-                     coords = c("lon","lat"), 
-                     crs = 4326)
-username=source("MODISusername.R")
-password=source("MODISpassword.R")
-MODIStsp::MODIStsp(gui=FALSE,
-                   selprod = "LandCover_Type_Yearly_500m (MCD12Q1)",
-                   bandsel = "Land Cover Type 1 (IGBP)*",
-                   start_date = "2008.01.01",
-                   end_date = "2020.12.31",
-                   bbox = NYSbb_df,
-                   user = username$value,
-                   password = password$value,
-                   reprocess = TRUE)
-a=as.data.frame(gdalUtils::get_subdatasets(paste(tdir,
-        "/MODIStsp/HDFs/MCD12Q1.A2014001.h18v04.006.2018146020544.hdf",sep="")))
+#MODIStsp::MODIStsp_get_prodlayers("LandCover_Type_Yearly_500m (MCD12Q1)")
+#NYSbb=data.frame(lat = c(40,45.2),
+#                 lon = c(-71,-80))
+#NYSbb_df <- st_as_sf(NYSbb, 
+#                     coords = c("lon","lat"), 
+#                     crs = 4326)
+#username=source("MODISusername.R")
+#password=source("MODISpassword.R")
+#MODIStsp::MODIStsp(gui=FALSE,
+#                   selprod = "LandCover_Type_Yearly_500m (MCD12Q1)",
+#                   bandsel = "Land Cover Type 1 (IGBP)*",
+#                   start_date = "2008.01.01",
+#                   end_date = "2020.12.31",
+#                   bbox = NYSbb_df,
+#                   user = username$value,
+#                   password = password$value,
+#                   reprocess = TRUE)
+#a=as.data.frame(gdalUtils::get_subdatasets(paste(tdir,
+#        "/MODIStsp/HDFs/MCD12Q1.A2014001.h18v04.006.2018146020544.hdf",sep="")))
 
-gdal_translate(a[6,1],dst_dataset = "name.tif")
-b=raster('name.tif')
-crs(b)="+proj=utm +zone=18 +datum=NAD83 +units=m +no_defs" 
-plot(b)
-plot(SpNYS,add=T)
+#gdal_translate(a[6,1],dst_dataset = "name.tif")
+#b=raster('name.tif')
+#crs(b)="+proj=utm +zone=18 +datum=NAD83 +units=m +no_defs" 
+#plot(b)
+#plot(SpNYS,add=T)
 
-tm_shape(b)+tm_raster()+tm_graticules()+
-        tm_shape(SpNYS)+tm_borders()
-        tmap_mode("view")
-
-
+#tm_shape(b)+tm_raster()+tm_graticules()+
+#        tm_shape(SpNYS)+tm_borders()
+#        tmap_mode("view")
 
 
 
@@ -80,18 +79,20 @@ tm_shape(b)+tm_raster()+tm_graticules()+
 
 
 
-rgdal::readGDAL(paste(tdir,"/MODIStsp/HDFs/MCD12Q1.A2008001.h18v04.006.2018145230343.hdf",sep=""))
 
-a=runGdal(product = "MCD12Q1", 
-          collection = "006",forceDownload = T,extent = NY,
-        begin = "2016001", end = "2017002", 
-        SDSstring = "101100")
+
+#rgdal::readGDAL(paste(tdir,"/MODIStsp/HDFs/MCD12Q1.A2008001.h18v04.006.2018145230343.hdf",sep=""))
+
+#a=runGdal(product = "MCD12Q1", 
+ #         collection = "006",forceDownload = T,extent = NY,
+ #       begin = "2016001", end = "2017002", 
+ #       SDSstring = "101100")
 
 
         
-gdalinfo(datasetname = paste(tdir,"/MODIS_ARC/MODIS/MCD12Q1.006/2016.01.01/MCD12Q1.A2016001.h12v04.006.2018149125204.hdf",sep=""))
-MODISTools::MODISG
-gdal_translate(a,dst_dataset = "test.tif")
+#gdalinfo(datasetname = paste(tdir,"/MODIS_ARC/MODIS/MCD12Q1.006/2016.01.01/MCD12Q1.A2016001.h12v04.006.2018149125204.hdf",sep=""))
+#MODISTools::MODISG
+#gdal_translate(a,dst_dataset = "test.tif")
 
 
 ## Land use data
@@ -101,12 +102,12 @@ gdal_translate(a,dst_dataset = "test.tif")
 
 
 data(us_states)
-NY = us_states[17,]
-NLCD=get_nlcd(template = st_as_sf(NY),
-              label = "NYS",
-              year = 2016,
-              dataset='Land_Cover',
-              landmass="L48")
+#NY = us_states[17,]
+#NLCD=get_nlcd(template = st_as_sf(NY),
+#              label = "NYS",
+#              year = 2016,
+#              dataset='Land_Cover',
+#              landmass="L48")
 
 # Start plotting
 names(Adultdata)[6]="Total_Tested"
@@ -182,7 +183,7 @@ All_groupings=rbind(Adultgroupings,Nymphgroupings)
 ggplot(data = All_groupings,aes(x=Year,y=percpos,color=Pathogen)) +
         geom_line() +
         ggtitle(expression(paste("Time Series Graph of ", italic("Ixodes scapularis")," Infectivity Rates (NYS)",sep=""))) +
-        theme_classic() +
+        theme(axis.text.x = element_text(angle=65,vjust=.65)) +
         geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7) +
         geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7) +
         facet_wrap(~`Life Stage`) +
@@ -222,32 +223,71 @@ Allcnts=as.data.frame(list(unique(All_county_groupings$County)))
 names(Allcnts)[1]="County"
 Allcnts$ID=c(1:length(unique(All_county_groupings$County)))
 All_county_groupings=left_join(All_county_groupings,Allcnts)
-for(i in 1:length(unique(All_county_groupings$County))){
-        a=subset(All_county_groupings,All_county_groupings$ID==7)
-        ggplot(data=a,aes(x=Year,y=percpos,color=Pathogen)) +
-                geom_line() +
-                ggtitle(expression(paste(italic("Ixodes scapularis")," Infectivity Rates in",i,sep=""))) +
-                theme_classic() +
-                geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7) +
-                geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7) +
-                facet_wrap(~`Life Stage`) +
-                scale_x_continuous(breaks=c(2008:2019))
-        ggsave(paste(i," County Line Graph.pdf",sep = ""))
-}
-test1 = All_county_groupings %>% 
-        nest(-County) %>% mutate(ggplots = map(data, 
-                             ~ggplot(data = .,aes(x=Year,y=percpos,color=Pathogen)) + geom_line()))
-print(test1[[3]])
-map(test1, ~ggplot(,aes(x=Year,y=percpos,color=Pathogen))+geom_line())
 
-## ^ need to figure out conditional county name paste for each i
-# use purr package
-#https://stackoverflow.com/questions/58204452/printing-ggplot-with-purrr-map
+All_county_groupings=All_county_groupings[c(-8)]
+test_copy=All_groupings
+test_copy=test_copy[-c(3,4)]
+names(test_copy)[3]="Avg_pos"
+test_copy$Pathogen=ifelse(test_copy$Pathogen=="Anaplasma phagocytophilum","A. phagocytophilum",
+                          ifelse(test_copy$Pathogen=="Babesia microti","B. microti",
+                                 ifelse(test_copy$Pathogen=="Borrelia burgdorferi","B. burgdorferi",
+                                        ifelse(test_copy$Pathogen=="Borrelia miyamotoi","B. miyamotoi",NA))))
+test_copy$Pathogen1=ifelse(test_copy$Pathogen=="A. phagocytophilum","NYS Average A. phagocytophilum",
+                           ifelse(test_copy$Pathogen=="B. microti","NYS Average B. microti",
+                                  ifelse(test_copy$Pathogen=="B. burgdorferi","NYS Average B. burgdorferi",
+                                         ifelse(test_copy$Pathogen=="B. miyamotoi","NYS Average B. miyamotoi",NA))))
+All_county_groupings$Pathogen=ifelse(All_county_groupings$Pathogen=="Anaplasma phagocytophilum","A. phagocytophilum",
+                          ifelse(All_county_groupings$Pathogen=="Babesia microti","B. microti",
+                                 ifelse(All_county_groupings$Pathogen=="Borrelia burgdorferi","B. burgdorferi",
+                                        ifelse(All_county_groupings$Pathogen=="Borrelia miyamotoi","B. miyamotoi",NA))))
+
+
+testa= left_join(All_county_groupings,test_copy,by=c("Year","Pathogen","Life Stage"))
+#test1 = All_county_groupings %>% 
+ #       nest(-County) 
+test1 = testa %>% 
+        nest(-County)
+test2 = test1 %>% mutate(plot = map2(data, County, 
+                             ~ggplot(data = .x)+ 
+                                     geom_line(data=.x,aes(x=Year,y=percpos,color=Pathogen))+
+                                     scale_color_manual(name="Pathogen",values=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","#E41A1C","#377EB8","#4DAF4A","#984EA3"))+
+                                     geom_line(data=.x,aes(x=Year,y=Avg_pos,color=Pathogen1),linetype="dashed")+
+                                     theme(axis.text.x = element_text(angle=65,vjust=.65))+
+                                     geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7)+
+                                     geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7)+
+                                     facet_wrap(~`Life Stage`)+
+                                     scale_x_continuous(breaks=c(2008:2019))+
+                                     ylab("Pathogen Prevalence (%)")+
+                                     ggtitle(glue("{.y}"))))
+                             
+                  
+print(test2$plot[1])
+
+newtable=
+kableExtra::kable()
+
+
 # Leaflet of NYS
 County_Boundaries=st_transform(County_Boundaries,CRS("+proj=longlat +datum=WGS84"))
+names(County_Boundaries)[1]="County"
+test_new=left_join(County_Boundaries,test2,by='County')
+
 leaflet() %>%
         addTiles() %>%
-        addPolylines(data=County_Boundaries,
+        addPolygons(data=test_new,
+                    group='County',
+                    weight=1,
+                    highlight=highlightOptions(
+                        weight=5,
+                        color='red',
+                        bringToFront=TRUE)) %>%
+        leafpop::addPopupGraphs(graph=test_new$plot,
+                                group='County',
+                                width=600,height=300)
+
+
+
+,
                      color = "black",
                      stroke = TRUE,
                      weight=3) # %>%

@@ -1,16 +1,24 @@
 ---
 title: "GEO 511 Final Project"
 author: Collin O'Connor
-subtitle: Subtitle here if desired
 ---
-
+<style>
+.leaflet-popup-content > img {
+    max-width: unset;
+}
+</style>
 # Introduction
 
-[~ 200 words]
 
-Clearly stated background and questions / hypotheses / problems being addressed. Sets up the analysis in an interesting and compelling way.
+The deer tick or blacklegged tick (<i>Ixodes scapularis</i>) is the most medically relevant species of hard tick that in New York State (NYS). <i>I. scapularis</i> populations in NYS may carry a plethora of pathogens, including but not limited to:
 
-Test build
+* <i>Borrelia burgdorferi</i> - the causitive agent of Lyme disease
+* <i>Anaplasma phagocytophilum</i> - the causitive agent of human granulocytic anaplasmosis
+* <i>Babesia microti</i> - the causitive agent of babesiosis in humans
+* <i>Borrelia miyamotoi</i> - causative of a relapsing tick fever 
+
+The prevalence of the above pathogens varies both spatially and temporally in NYS, which results in varying risk for NYS citizens. Because these pathogens are not transmitted from tick to tick transovarially, they are required to be maintained throughout populations of animal hosts in the various ecosystems of NYS. Data suggests that certain land use and land cover types are beneficial for populations of animals which maintain these pathogens, and potentially for the pathogen's themselves. This project aims to explore any trends between pathogen prevalence within <i>I. scapularis</i> at the county level and land use / land cover types in NYS.
+
 
 # Materials and methods
 
@@ -34,67 +42,231 @@ You can do numbers like this:
 2. The second most important thing
 3. The third most important thing
 
-See [http://rmarkdown.rstudio.com/](http://rmarkdown.rstudio.com/) for all the amazing things you can do.
+Packages required are below:
 
-
-Here's my first code chunk.
-```{r}
-1+2
-```
-
-Load any required packages in a code chunk (you may need to install some packages):
-
-```{r, message=F, warning=F}
+```{r, echo=T,results='hide',warning=F,message=F}
+library(readr)
 library(tidyverse)
+library(FedData)
+library(raster)
+library(sf)
+library(spData)
 library(leaflet)
-library(kableExtra)
-knitr::opts_chunk$set(cache=TRUE)  # cache the results for quick compiling
+library(purrr)
+library(MODIS)
+library(MODISTools)
+library(gdalUtilities)
+library(gdalUtils)
+library(rgdal)
+library(tmap)
+library(glue)
 ```
 
 ## Download and clean all required data
-```{r}
-n=20
-data=data.frame(x=runif(n,-180,180),
-                y=runif(n,-60,60),
-                size = runif(n, 5, 20),
-                category = factor(
-                  sample(letters[1:5], n, replace = TRUE)
-                  ),
-                value = rnorm(n))
+```{r tickdata_clean/download, echo=T,results='hide',warning=F,message=F}
+tdir=tempdir()
+## Tick data
+adulturl <- "https://health.data.ny.gov/api/views/vzbp-i2d4/rows.csv?accessType=DOWNLOAD&bom=true&query=select+*"
+nymphurl <- "https://health.data.ny.gov/api/views/kibp-u2ip/rows.csv?accessType=DOWNLOAD&bom=true&query=select+*"
+if(file.exists(paste(tdir,"/Adultdata.csv",sep=""))==FALSE){
+download.file(adulturl, destfile = file.path(tdir,"/Adultdata.csv"))}
+if(file.exists(paste(tdir,"/Nymphdata.csv",sep=""))==FALSE){
+download.file(nymphurl,destfile = file.path(tdir,"/Nymphdata.csv"))}
+Nymphdata <- read_csv(paste(tdir,"/Nymphdata.csv",sep=""))
+Adultdata <- read_csv(paste(tdir,"/Adultdata.csv",sep=""))
 ```
 
-```{r, results='asis'}
-data %>% 
-  slice(1:10) %>% #show only 1:n rows
-  kable(digits=2,align="c")%>% #make table and round to two digits
-  kable_styling(bootstrap_options = 
-                  c("striped", "hover", "condensed", "responsive")) #apply other formatting
+```{r NYSshpfiles,echo=T,results='hide',warning=F,message=F,error=F}
+shpurl="http://gis.ny.gov/gisdata/fileserver/?DSID=927&file=NYS_Civil_Boundaries.shp.zip"
+if(file.exists(paste(tdir,"/NYS_Civil_Boundaries_SHP/Counties_Shoreline.shp",sep=""))==FALSE){
+download.file(shpurl, destfile = file.path(tdir,"Boundaries.zip"))
+unzip(file.path(tdir,"Boundaries.zip"),exdir = tdir)
+Cnt=read_sf(paste(tdir,"/NYS_Civil_Boundaries_SHP/Counties_Shoreline.shp",sep=""))}
+#list.files(paste(tdir,"/NYS_Civil_Boundaries_SHP",sep=""))
+County_Boundaries = Cnt[,c(1,18)]
+NYS = st_union(County_Boundaries)
+simpSpNYS=st_simplify(NYS,
+                      dTolerance=100)
+SpNYS=as(NYS,Class="Spatial")
+```
+
+
+```{r, average_plot,eval=T,echo=F}
+names(Adultdata)[6]="Total_Tested"
+Adult_BBdat=Adultdata[,1:7]
+Adult_BBdat$Pathogen="Borrelia burgdorferi"
+names(Adult_BBdat)[7]="Percent_Positive"
+Adult_Apdat=Adultdata[,c(1:6,8)]
+Adult_Apdat$Pathogen="Anaplasma phagocytophilum"
+names(Adult_Apdat)[7]="Percent_Positive"
+Adult_Bmiydat=Adultdata[,c(1:6,10)]
+Adult_Bmiydat$Pathogen="Borrelia miyamotoi"
+names(Adult_Bmiydat)[7]="Percent_Positive"
+Adult_Bmicdat=Adultdata[,c(1:6,9)]
+Adult_Bmicdat$Pathogen="Babesia microti"
+names(Adult_Bmicdat)[7]="Percent_Positive"
+Adultnewdat1 = rbind(Adult_BBdat,Adult_Apdat)
+Adultnewdat1 = rbind(Adultnewdat1,Adult_Bmiydat)
+Adultnewdat1 = rbind(Adultnewdat1,Adult_Bmicdat)
+Adultnewdat1$`Percent Positiveby100`=Adultnewdat1$`Percent_Positive`/100
+Adultnewdat1$Totpos=round(Adultnewdat1$`Total_Tested`*Adultnewdat1$`Percent Positiveby100`)
+Adultnewdat2 = subset(Adultnewdat1,is.na(Adultnewdat1$Percent_Positive)==FALSE)
+
+Adulttotpos = Adultnewdat2 %>%
+        group_by(Year,Pathogen) %>%
+        summarize(sum(Totpos))
+Adulttotpos$`sum(Totpos)` = ifelse(is.na(Adulttotpos$`sum(Totpos)`)==TRUE,0,Adulttotpos$`sum(Totpos)`)
+Adulttottested = Adultnewdat2 %>%
+        group_by(Year,Pathogen) %>%
+        summarize(sum(Total_Tested))
+Adultgroupings=cbind(Adulttottested,Adulttotpos)
+Adultgroupings=Adultgroupings[,c(1:3,6)]
+Adultgroupings$percpos=(Adultgroupings$`sum(Totpos)`/Adultgroupings$`sum(Total_Tested)`)*100
+names(Adultgroupings)[1]="Year"
+names(Adultgroupings)[2]="Pathogen"
+Adultgroupings$`Life Stage`="Adult"
+
+names(Nymphdata)[6]="Total_Tested"
+Nymph_BBdat=Nymphdata[,1:7]
+Nymph_BBdat$Pathogen="Borrelia burgdorferi"
+names(Nymph_BBdat)[7]="Percent_Positive"
+Nymph_Apdat=Nymphdata[,c(1:6,8)]
+Nymph_Apdat$Pathogen="Anaplasma phagocytophilum"
+names(Nymph_Apdat)[7]="Percent_Positive"
+Nymph_Bmiydat=Nymphdata[,c(1:6,10)]
+Nymph_Bmiydat$Pathogen="Borrelia miyamotoi"
+names(Nymph_Bmiydat)[7]="Percent_Positive"
+Nymph_Bmicdat=Nymphdata[,c(1:6,9)]
+Nymph_Bmicdat$Pathogen="Babesia microti"
+names(Nymph_Bmicdat)[7]="Percent_Positive"
+Nymphnewdat1 = rbind(Nymph_BBdat,Nymph_Apdat)
+Nymphnewdat1 = rbind(Nymphnewdat1,Nymph_Bmiydat)
+Nymphnewdat1 = rbind(Nymphnewdat1,Nymph_Bmicdat)
+Nymphnewdat1$`Percent Positiveby100`=Nymphnewdat1$`Percent_Positive`/100
+Nymphnewdat1$Totpos=round(Nymphnewdat1$`Total_Tested`*Nymphnewdat1$`Percent Positiveby100`)
+Nymphnewdat2 = subset(Nymphnewdat1,is.na(Nymphnewdat1$Percent_Positive)==FALSE)
+
+Nymphtotpos = Nymphnewdat2 %>%
+        group_by(Year,Pathogen) %>%
+        summarize(sum(Totpos))
+Nymphtotpos$`sum(Totpos)` = ifelse(is.na(Nymphtotpos$`sum(Totpos)`)==TRUE,0,Nymphtotpos$`sum(Totpos)`)
+Nymphtottested = Nymphnewdat2 %>%
+        group_by(Year,Pathogen) %>%
+        summarize(sum(Total_Tested))
+Nymphgroupings=cbind(Nymphtottested,Nymphtotpos)
+Nymphgroupings=Nymphgroupings[,c(1:3,6)]
+Nymphgroupings$percpos=(Nymphgroupings$`sum(Totpos)`/Nymphgroupings$`sum(Total_Tested)`)*100
+names(Nymphgroupings)[1]="Year"
+names(Nymphgroupings)[2]="Pathogen"
+Nymphgroupings$`Life Stage`="Nymph"
+
+All_groupings=rbind(Adultgroupings,Nymphgroupings)
+
+ggplot(data = All_groupings,aes(x=Year,y=percpos,color=Pathogen)) +
+        geom_line() +
+        ggtitle(expression(paste("Time Series Graph of ", italic("Ixodes scapularis")," Infectivity Rates (NYS)",sep=""))) +
+        theme(axis.text.x = element_text(angle=65,vjust=.65)) +
+        geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7) +
+        geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7) +
+        facet_wrap(~`Life Stage`) +
+        ylab("Pathogen Prevalence (%)")+
+        scale_x_continuous(breaks=c(2008:2019))
 ```
 
 Add any additional processing steps here.
 
+```{r county_subplots,eval=T,echo=F,results='hide',warning=F,message=F}
+Ad_county_totpos = Adultnewdat1 %>%
+        group_by(Year,Pathogen,County) %>%
+        summarize(sum(Totpos))
+Ad_county_tottested = Adultnewdat1 %>%
+        group_by(Year,Pathogen,County) %>%
+        summarize(sum(Total_Tested))
+Ad_county_groupings=cbind(Ad_county_tottested,Ad_county_totpos)
+Ad_county_groupings=Ad_county_groupings[,c(1:4,8)]
+Ad_county_groupings$percpos=Ad_county_groupings$`sum(Totpos)`/(Ad_county_groupings$`sum(Total_Tested)`)*100
+names(Ad_county_groupings)=c("Year","Pathogen","County","sum(Total_Tested)","sum(Totpos)","percpos")
+Ad_county_groupings$`Life Stage`="Adult"
+
+Ny_county_totpos = Nymphnewdat1 %>%
+        group_by(Year,Pathogen,County) %>%
+        summarize(sum(Totpos))
+Ny_county_tottested = Nymphnewdat1 %>%
+        group_by(Year,Pathogen,County) %>%
+        summarize(sum(Total_Tested))
+Ny_county_groupings=cbind(Ny_county_tottested,Ny_county_totpos)
+Ny_county_groupings=Ny_county_groupings[,c(1:4,8)]
+Ny_county_groupings$percpos=Ny_county_groupings$`sum(Totpos)`/(Ny_county_groupings$`sum(Total_Tested)`)*100
+names(Ny_county_groupings)=c("Year","Pathogen","County","sum(Total_Tested)","sum(Totpos)","percpos")
+Ny_county_groupings$`Life Stage`="Nymph"
+
+All_county_groupings=rbind(Ad_county_groupings,Ny_county_groupings)
+All_county_groupings = subset(All_county_groupings,All_county_groupings$`sum(Total_Tested)`>0)
+All_county_groupings = subset(All_county_groupings,is.na(All_county_groupings$`sum(Totpos)`)==FALSE)
+Allcnts=as.data.frame(list(unique(All_county_groupings$County)))
+names(Allcnts)[1]="County"
+Allcnts$ID=c(1:length(unique(All_county_groupings$County)))
+All_county_groupings=left_join(All_county_groupings,Allcnts)
+
+All_county_groupings=All_county_groupings[c(-8)]
+test_copy=All_groupings
+test_copy=test_copy[-c(3,4)]
+names(test_copy)[3]="Avg_pos"
+test_copy$Pathogen=ifelse(test_copy$Pathogen=="Anaplasma phagocytophilum","A. phagocytophilum",
+                          ifelse(test_copy$Pathogen=="Babesia microti","B. microti",
+                                 ifelse(test_copy$Pathogen=="Borrelia burgdorferi","B. burgdorferi",
+                                        ifelse(test_copy$Pathogen=="Borrelia miyamotoi","B. miyamotoi",NA))))
+test_copy$Pathogen1=ifelse(test_copy$Pathogen=="A. phagocytophilum","NYS Average A. phagocytophilum",
+                           ifelse(test_copy$Pathogen=="B. microti","NYS Average B. microti",
+                                  ifelse(test_copy$Pathogen=="B. burgdorferi","NYS Average B. burgdorferi",
+                                         ifelse(test_copy$Pathogen=="B. miyamotoi","NYS Average B. miyamotoi",NA))))
+All_county_groupings$Pathogen=ifelse(All_county_groupings$Pathogen=="Anaplasma phagocytophilum","A. phagocytophilum",
+                          ifelse(All_county_groupings$Pathogen=="Babesia microti","B. microti",
+                                 ifelse(All_county_groupings$Pathogen=="Borrelia burgdorferi","B. burgdorferi",
+                                        ifelse(All_county_groupings$Pathogen=="Borrelia miyamotoi","B. miyamotoi",NA))))
+
+
+testa= left_join(All_county_groupings,test_copy,by=c("Year","Pathogen","Life Stage"))
+#test1 = All_county_groupings %>% 
+ #       nest(-County) 
+test1 = testa %>% 
+        nest(-County)
+test2 = test1 %>% mutate(plot = map2(data, County, 
+                             ~ggplot(data = .x)+ 
+                                     geom_line(data=.x,aes(x=Year,y=percpos,color=Pathogen))+
+                                     scale_color_manual(name="Pathogen",values=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","#E41A1C","#377EB8","#4DAF4A","#984EA3"))+
+                                     geom_line(data=.x,aes(x=Year,y=Avg_pos,color=Pathogen1),linetype="dashed")+
+                                     theme(axis.text.x = element_text(angle=65,vjust=.65))+
+                                     geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7)+
+                                     geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7)+
+                                     facet_wrap(~`Life Stage`)+
+                                     scale_x_continuous(breaks=c(2008:2019))+
+                                     ylab("Pathogen Prevalence (%)")+
+                                     ggtitle(glue("{.y}"))))
+County_Boundaries=st_transform(County_Boundaries,CRS("+proj=longlat +datum=WGS84"))
+names(County_Boundaries)[1]="County"
+test_new=left_join(County_Boundaries,test2,by='County')
+```
+
+
 # Results
 
-[~200 words]
-
-Tables and figures (maps and other graphics) are carefully planned to convey the results of your analysis. Intense exploration and evidence of many trials and failures. The author looked at the data in many different ways before coming to the final presentation of the data.
-
-Show tables, plots, etc. and describe them.
-
-```{r, fig.width=6, fig.height=3, fig.cap="Map of completely random data"}
-m <- leaflet(data) %>% 
-  addTiles() %>% 
-  addCircleMarkers(~x, ~y, radius = ~size,color = ~as.factor(category)) %>% 
-  addPopups(~x[2], ~y[2], "Random popup")
-m  # a map with the default OSM tile layer
+```{r interactive, eval=T,echo=F,warning=F,message=F,error=F}
+leaflet() %>%
+        addTiles() %>%
+        addPolygons(data=test_new,
+                    group='County',
+                    weight=1,
+                    highlight=highlightOptions(
+                        weight=5,
+                        color='red',
+                        bringToFront=TRUE)) %>%
+        leafpop::addPopupGraphs(graph=test_new$plot,
+                                group='County',
+                                width=600,height=300)
 ```
 
 
-```{r}
-data %>% 
-  ggplot(aes(x=x,y=y,col=category))+
-  geom_point()
-```
 
 # Conclusions
 
