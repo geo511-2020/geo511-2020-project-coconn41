@@ -32,8 +32,8 @@ Adultdata <- read_csv(paste(tdir,"/Adultdata.csv",sep=""))
 shpurl="http://gis.ny.gov/gisdata/fileserver/?DSID=927&file=NYS_Civil_Boundaries.shp.zip"
 if(file.exists(paste(tdir,"/NYS_Civil_Boundaries_SHP/Counties_Shoreline.shp",sep=""))==FALSE){
 download.file(shpurl, destfile = file.path(tdir,"Boundaries.zip"))
-unzip(file.path(tdir,"Boundaries.zip"),exdir = tdir)
-Cnt=read_sf(paste(tdir,"/NYS_Civil_Boundaries_SHP/Counties_Shoreline.shp",sep=""))}
+unzip(file.path(tdir,"Boundaries.zip"),exdir = tdir)}
+Cnt=read_sf(paste(tdir,"/NYS_Civil_Boundaries_SHP/Counties_Shoreline.shp",sep=""))
 #list.files(paste(tdir,"/NYS_Civil_Boundaries_SHP",sep=""))
 County_Boundaries = Cnt[,c(1,18)]
 NYS = st_union(County_Boundaries)
@@ -241,31 +241,49 @@ All_county_groupings$Pathogen=ifelse(All_county_groupings$Pathogen=="Anaplasma p
                                  ifelse(All_county_groupings$Pathogen=="Borrelia burgdorferi","B. burgdorferi",
                                         ifelse(All_county_groupings$Pathogen=="Borrelia miyamotoi","B. miyamotoi",NA))))
 
+#create data to bind that has 6 not listed counties, 4 pathogens each, and 12 years each. then expand, then join
 
-testa= left_join(All_county_groupings,test_copy,by=c("Year","Pathogen","Life Stage"))
-#test1 = All_county_groupings %>% 
- #       nest(-County) 
-test1 = testa %>% 
+asdf=as.data.frame(c(2008:2019))
+names(asdf)[1]="Year"
+names(County_Boundaries)[1]="County"
+asdf$County= c(subset(County_Boundaries$County, !(County_Boundaries$County %in%  All_county_groupings$County)),
+               subset(County_Boundaries$County, !(County_Boundaries$County %in%  All_county_groupings$County)))
+asdf$Pathogen=c("A. phagocytophilum","B. microti","B. miyamotoi","B. burgdorferi","A. phagocytophilum",
+                "B. microti","B. miyamotoi","B. burgdorferi","A. phagocytophilum","B. microti","B. miyamotoi","B. burgdorferi")
+asdf$Life_Stage=c("Nymph","Nymph","Nymph","Nymph","Nymph","Nymph",
+                  "Adult","Adult","Adult","Adult","Adult","Adult")
+
+asdf2=expand(asdf,Year,County,Pathogen,Life_Stage)
+asdf2$Total_tested=0
+asdf2$Tot_pos=0
+asdf2$percpos=0
+names(All_county_groupings)[4]="Total_tested"
+names(All_county_groupings)[5]="Tot_pos"
+names(All_county_groupings)[7]="Life_Stage"
+All_county_groupings2=rbind(All_county_groupings,asdf2)
+All_county_groupings3=expand(All_county_groupings2,Year,Pathogen,County,Life_Stage)
+
+All_county_groupings4=left_join(All_county_groupings3,All_county_groupings,by=c("Year","Pathogen","Life_Stage","County"))
+names(test_copy)[4]="Life_Stage"
+
+
+
+test1 = All_county_groupings4 %>%
         nest(-County)
+
 test2 = test1 %>% mutate(plot = map2(data, County, 
-                             ~ggplot(data = .x)+ 
-                                     geom_line(data=.x,aes(x=Year,y=percpos,color=Pathogen))+
-                                     scale_color_manual(name="Pathogen",values=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","#E41A1C","#377EB8","#4DAF4A","#984EA3"))+
-                                     geom_line(data=.x,aes(x=Year,y=Avg_pos,color=Pathogen1),linetype="dashed")+
-                                     theme(axis.text.x = element_text(angle=65,vjust=.65))+
+                             ~ggplot()+ 
                                      geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7)+
                                      geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7)+
-                                     facet_wrap(~`Life Stage`)+
+                                     geom_line(data=.x,aes(x=Year,y=percpos,color=Pathogen))+
+                                     scale_color_manual(name="Pathogen",values=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","#E41A1C","#377EB8","#4DAF4A","#984EA3"))+
+                                     geom_line(data=test_copy,aes(x=Year,y=Avg_pos,color=Pathogen,linetype="NYS Average Pathogen Prevalence"))+
+                                     scale_linetype_manual("",values = c(2,2,2,2,1,1,1,1))+
+                                     theme(axis.text.x = element_text(angle=65,vjust=.65))+
+                                     facet_wrap(~Life_Stage)+
                                      scale_x_continuous(breaks=c(2008:2019))+
                                      ylab("Pathogen Prevalence (%)")+
                                      ggtitle(glue("{.y}"))))
-                             
-                  
-print(test2$plot[1])
-
-newtable=
-kableExtra::kable()
-
 
 # Leaflet of NYS
 County_Boundaries=st_transform(County_Boundaries,CRS("+proj=longlat +datum=WGS84"))
