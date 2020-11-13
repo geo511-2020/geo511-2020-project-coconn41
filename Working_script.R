@@ -267,7 +267,6 @@ All_county_groupings4=left_join(All_county_groupings3,All_county_groupings,by=c(
 names(test_copy)[4]="Life_Stage"
 
 
-
 test1 = All_county_groupings4 %>%
         nest(-County)
 
@@ -283,7 +282,9 @@ test2 = test1 %>% mutate(plot = map2(data, County,
                                      facet_wrap(~Life_Stage)+
                                      scale_x_continuous(breaks=c(2008:2019))+
                                      ylab("Pathogen Prevalence (%)")+
+                                     labs(caption="Solid lines indicate pathogen prevalence from sample specimens in County")+
                                      ggtitle(glue("{.y}"))))
+
 
 # Leaflet of NYS
 County_Boundaries=st_transform(County_Boundaries,CRS("+proj=longlat +datum=WGS84"))

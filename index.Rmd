@@ -265,6 +265,7 @@ test2 = test1 %>% mutate(plot = map2(data, County,
                                      facet_wrap(~Life_Stage)+
                                      scale_x_continuous(breaks=c(2008:2019))+
                                      ylab("Pathogen Prevalence (%)")+
+                                     labs(caption="Solid lines indicate pathogen prevalence from sample specimens in County")+
                                      ggtitle(glue("{.y}"))))
 ```
 
