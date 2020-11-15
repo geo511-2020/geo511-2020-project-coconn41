@@ -258,7 +258,7 @@ test2 = test1 %>% mutate(plot = map2(data, County,
                                      geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7)+
                                      geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7)+
                                      geom_line(data=.x,aes(x=Year,y=percpos,color=Pathogen))+
-                                     scale_color_manual(name="Pathogen",values=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","#E41A1C","#377EB8","#4DAF4A","#984EA3"))+
+                                     geom_point(data=.x,aes(x=Year,y=percpos,color=Pathogen))+ scale_color_manual(name="Pathogen",values=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","#E41A1C","#377EB8","#4DAF4A","#984EA3"))+
                                      geom_line(data=test_copy,aes(x=Year,y=Avg_pos,color=Pathogen,linetype="NYS Average Pathogen Prevalence"))+
                                      scale_linetype_manual("",values = c(2,2,2,2,1,1,1,1))+
                                      theme(axis.text.x = element_text(angle=65,vjust=.65))+
