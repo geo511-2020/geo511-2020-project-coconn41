@@ -14,6 +14,7 @@ library(MODISTools)
 library(gdalUtilities)
 library(gdalUtils)
 library(rgdal)
+library(rgeos)
 library(tmap)
 library(glue)
 # Data gathering
@@ -54,15 +55,18 @@ SpNYS=as(NYS,Class="Spatial")
 #                   bandsel = "Land Cover Type 1 (IGBP)*",
 #                   start_date = "2008.01.01",
 #                   end_date = "2020.12.31",
-#                   bbox = NYSbb_df,
+#                   spafile = simpSpNYS,
 #                   user = username$value,
 #                   password = password$value,
 #                   reprocess = TRUE)
-#a=as.data.frame(gdalUtils::get_subdatasets(paste(tdir,
-#        "/MODIStsp/HDFs/MCD12Q1.A2014001.h18v04.006.2018146020544.hdf",sep="")))
+#a=gdalUtils::get_subdatasets(paste(tdir,
+#        "/MODIStsp/HDFs/MCD12Q1.A2014001.h18v04.006.2018146020544.hdf",sep=""))
 
 #gdal_translate(a[6,1],dst_dataset = "name.tif")
-#b=raster('name.tif')
+#gdal_translate(src_dataset = paste(tdir,
+ #       "/MODIStsp/HDFs/MCD12Q1.A2014001.h18v04.006.2018146020544.hdf",sep=""),
+ #       dst_dataset = 'test.tif')
+#b=raster('test.tif')
 #crs(b)="+proj=utm +zone=18 +datum=NAD83 +units=m +no_defs" 
 #plot(b)
 #plot(SpNYS,add=T)
@@ -99,15 +103,31 @@ SpNYS=as(NYS,Class="Spatial")
 
 
 
-
-
-data(us_states)
+################################################################################
+#when using website, get data from the below calls
+#data(us_states)
 #NY = us_states[17,]
 #NLCD=get_nlcd(template = st_as_sf(NY),
 #              label = "NYS",
-#              year = 2016,
-#              dataset='Land_Cover',
-#              landmass="L48")
+#               year = 2016,
+#             dataset='Land_Cover',
+#             landmass="L48",
+#             extraction.dir = tdir)
+
+
+################################################################################
+#####
+#For now
+#####
+a=raster("NYS_NLCD_2016_Land_Cover_L48_nlcd copy.tif")
+plot(a)
+
+
+
+
+
+
+
 
 # Start plotting
 names(Adultdata)[6]="Total_Tested"
