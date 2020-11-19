@@ -43,6 +43,39 @@ simpSpNYS=st_simplify(NYS,
                       dTolerance=100)
 SpNYS=as(NYS,Class="Spatial")
 
+## Land use data
+simpCounties=st_simplify(County_Boundaries,dTolerance=100)
+
+newcounties=County_Boundaries %>% filter(NAME != "New York",
+                                         NAME != "Queens",
+                                         NAME != "Kings",
+                                         NAME != "Richmond",
+                                         NAME != "Bronx")
+
+df1=NULL
+pb=txtProgressBar(min=0,max=100,initial=0,style=3)
+for(i in 1:length(newcounties)){
+        NLCD=get_nlcd(template = st_as_sf(newcounties[i,]),
+                      year = 2016,
+                      label="Same",
+                      dataset='Land_Cover',
+                      landmass="L48",
+                      extraction.dir = tdir,
+                      force.redo = T)
+        NLCD2=projectRaster(from=NLCD,crs="+proj=utm +zone=18 +datum=NAD83 +units=m +no_defs")
+        cropnew=crop(NLCD2,extent(newcounties[i,]))
+        masknew=mask(cropnew,newcounties[i,])
+        masknew2= masknew %in% c(41,43)
+        masknew3=masknew/masknew
+        df=data.frame(County_Name=paste(newcounties[[i,1]]),
+                      Total_Pixels=cellStats(masknew3,'sum'),
+                      Total_Forest_Pixels=cellStats(masknew2,stat='sum'),
+                      Percent_Forest_Cover=cellStats(masknew2,stat='sum')/cellStats(masknew3,'sum'))
+        if(is.null(df1)==TRUE){df1=df}
+        else(df1=rbind(df1,df))
+        setTxtProgressBar(pb,i)
+}
+
 #MODIStsp::MODIStsp_get_prodlayers("LandCover_Type_Yearly_500m (MCD12Q1)")
 #NYSbb=data.frame(lat = c(40,45.2),
 #                 lon = c(-71,-80))
@@ -103,59 +136,17 @@ SpNYS=as(NYS,Class="Spatial")
 #gdal_translate(a,dst_dataset = "test.tif")
 
 
-## Land use data
 
 
 
-################################################################################
-#when using website, get data from the below calls
-#data(us_states)
-#NY = us_states[17,]
-#NLCD=get_nlcd(template = st_as_sf(NY),
-#              label = "NYS",
-#               year = 2016,
-#             dataset='Land_Cover',
-#             landmass="L48",
-#             extraction.dir = tdir)
 
-
-################################################################################
-#####
-#For now
-#####
-a=raster("NYS_NLCD_2016_Land_Cover_L48_nlcd copy.tif")
-crs(a)=crs(County_Boundaries)
-crs(a)
-# example: highval=raster::extract(tmax_annual,worldwoAnt,na.rm=TRUE,small=TRUE,sp=TRUE,fun=max)
-simpCounties=st_simplify(County_Boundaries,dTolerance=100)
-filter_image <- a %in% c(41,43)
-filter_image2 <- ifelse(a==41,1,ifelse(a==43,1,0))
-
-tm_shape(NLCD)+tm_raster()+tm_shape(newcounties[1,])+tm_borders(col='red')+tm_shape(newcounties[35,])+tm_borders(col='red')
-NLCD2=projectRaster(from=NLCD,crs="+proj=utm +zone=18 +datum=NAD83 +units=m +no_defs")
-masknew2 = masknew %in% c(41,43)
-
-newcounties=County_Boundaries %>% filter(NAME != "New York",
-                                         NAME != "Queens",
-                                         NAME != "Kings",
-                                         NAME != "Richmond",
-                                         NAME != "Bronx")
-for(i in 1:length(newcounties)){
-        NLCD=get_nlcd(template = st_as_sf(newcounties[i,]),
-                      label = paste(newcounties[[i,1]]),
-                      year = 2016,
-                      dataset='Land_Cover',
-                      landmass="L48",
-                      extraction.dir = tdir)
-        NLCD2=projectRaster(from=NLCD,crs="+proj=utm +zone=18 +datum=NAD83 +units=m +no_defs")
-        cropnew=crop(NLCD2,extent(newcounties[i,]))
-        masknew=mask(cropnew,newcounties[i,])
-        masknew2= masknew %in% c(41,43)
-        #need to find total number of cells in each raster
-        #or determine if below line finds if cells are adding up
-        cellStats(masknew2,stat=sum)
-        
-}
+NLCD=get_nlcd(template = st_as_sf(newcounties[2,]),
+              year = 2016,
+              label="Same",
+              dataset='Land_Cover',
+              landmass="L48",
+              extraction.dir = tdir,
+              force.redo = T)
 
 
 
@@ -174,16 +165,6 @@ for(i in 1:length(newcounties)){
 
 
 
-
-
-
-
-NLCD=get_nlcd(template = st_as_sf(simpCounties[1,]),
-              label = "Alb",
-               year = 2016,
-             dataset='Land_Cover',
-             landmass="L48",
-             extraction.dir = tdir)
 
 
 tm_shape(NLCD)+tm_raster()+tm_shape(simpCounties[1,])+tm_borders(col='red')+tm_graticules()
