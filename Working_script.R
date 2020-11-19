@@ -17,6 +17,7 @@ library(rgdal)
 library(rgeos)
 library(tmap)
 library(glue)
+library(terra)
 # Data gathering
 tdir=tempdir()
 ## Tick data
@@ -59,8 +60,11 @@ SpNYS=as(NYS,Class="Spatial")
 #                   user = username$value,
 #                   password = password$value,
 #                   reprocess = TRUE)
+
+#hdf4 <- paste(tdir,"/MODIStsp/HDFs/MCD12Q1.A2014001.h18v04.006.2018146020544.hdf",sep="")
+#a=rast(hdf4)
 #a=gdalUtils::get_subdatasets(paste(tdir,
-#        "/MODIStsp/HDFs/MCD12Q1.A2014001.h18v04.006.2018146020544.hdf",sep=""))
+ #       "/MODIStsp/HDFs/MCD12Q1.A2014001.h18v04.006.2018146020544.hdf",sep=""))
 
 #gdal_translate(a[6,1],dst_dataset = "name.tif")
 #gdal_translate(src_dataset = paste(tdir,
@@ -120,13 +124,137 @@ SpNYS=as(NYS,Class="Spatial")
 #For now
 #####
 a=raster("NYS_NLCD_2016_Land_Cover_L48_nlcd copy.tif")
+crs(a)=crs(County_Boundaries)
+crs(a)
+# example: highval=raster::extract(tmax_annual,worldwoAnt,na.rm=TRUE,small=TRUE,sp=TRUE,fun=max)
+simpCounties=st_simplify(County_Boundaries,dTolerance=100)
+filter_image <- a %in% c(41,43)
+filter_image2 <- ifelse(a==41,1,ifelse(a==43,1,0))
+
+tm_shape(NLCD)+tm_raster()+tm_shape(newcounties[1,])+tm_borders(col='red')+tm_shape(newcounties[35,])+tm_borders(col='red')
+NLCD2=projectRaster(from=NLCD,crs="+proj=utm +zone=18 +datum=NAD83 +units=m +no_defs")
+masknew2 = masknew %in% c(41,43)
+
+newcounties=County_Boundaries %>% filter(NAME != "New York",
+                                         NAME != "Queens",
+                                         NAME != "Kings",
+                                         NAME != "Richmond",
+                                         NAME != "Bronx")
+for(i in 1:length(newcounties)){
+        NLCD=get_nlcd(template = st_as_sf(newcounties[i,]),
+                      label = paste(newcounties[[i,1]]),
+                      year = 2016,
+                      dataset='Land_Cover',
+                      landmass="L48",
+                      extraction.dir = tdir)
+        NLCD2=projectRaster(from=NLCD,crs="+proj=utm +zone=18 +datum=NAD83 +units=m +no_defs")
+        cropnew=crop(NLCD2,extent(newcounties[i,]))
+        masknew=mask(cropnew,newcounties[i,])
+        masknew2= masknew %in% c(41,43)
+        #need to find total number of cells in each raster
+        #or determine if below line finds if cells are adding up
+        cellStats(masknew2,stat=sum)
+        
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+NLCD=get_nlcd(template = st_as_sf(simpCounties[1,]),
+              label = "Alb",
+               year = 2016,
+             dataset='Land_Cover',
+             landmass="L48",
+             extraction.dir = tdir)
+
+
+tm_shape(NLCD)+tm_raster()+tm_shape(simpCounties[1,])+tm_borders(col='red')+tm_graticules()
+
+a2=simpCounties[1,]
+a3=crop(a,albany)
 plot(a)
+plot(a2,add=T)
+
+albany=simpCounties[as.character(simpCounties$NAME)%in% "Albany",]
+
+tm_shape(a)+tm_raster()+tm_graticules()+
+tm_shape(a2)+tm_borders(col='red')+tm_graticules()
+
+highval=raster::extract(tmax_annual,worldwoAnt,na.rm=TRUE,small=TRUE,sp=TRUE,fun=max)
+numCores=detectCores()
+registerDoParallel(cores=numCores)
+totals=foreach(i = 1:length(simpCounties)) %do% 
+        raster::extract(filter_image2,simpCounties,na.rm=T,small=T,sp=T,fun=sum)
+numCores=detectCores()
+registerDoParallel(cores=numCores)
+d=NULL
+for(i in 1:length(simpCounties$NAME)){
+        a1=simpCounties[i,]
+        a2=mask(filter_image,a1)
+        c=cellStats(a2,stat=sum)
+        if(is.null(d)!=TRUE){d=c}
+        else{d=rbind(d,c)}
+}
+
+cwer2=mask(filter_image,Albany)
+cwer=cellStats(cwer2,stat=sum)
+
+allmyvals <- raster::extract(x =filter_image, simpCounties)
+myploys$sum_in_poly <- unlist(lapply(allmyvals , function(x) if (!is.null(x)) sum(x, na.rm=TRUE) else NA ))
+
+totals=foreach(i = 1:length(simpCounties)) %do% 
+        raster::extract(filter_image,simpCounties,na.rm=T,small=T,sp=T,fun=sum)
+
+
+for(i in 1:length(simpCounties)){PortionClassInPoly(MySingleShape=simpCounties[i,], MainRaster=a)}
+rgeos::A
+
+area(simpCounties)
+
+Albany=simpCounties[1,]
+Albany2=rasterize(Albany,a)
+Albany3=extract(a,Albany,fun=sf::st_area(a@data))
+atest=extract(a,Albany,na.rm=T,sm=T,)
+plot(Albany3)
+
+ex.mat.r = extract(a, as(Albany, 'Spatial'), buffer=1000, df=T) # raster extract
+
+asdf=mask(a,Albany)
+plot(asdf)
+b=raster::extract(a,simpCounties,na.rm=TRUE,small=T,sp=T,fun=mean)
+zonal(a,)
+projectra
+plot(a)
+tm_shape(a) +
+        tm_raster() + 
+tm_shape(County_Boundaries) +
+        tm_borders()
+b=crop(a,extent(Albany))
+
+
+ab=as.factor(a)
 
 
 
-
-
-
+filter_image2 <- a 
 
 
 # Start plotting
