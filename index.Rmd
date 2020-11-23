@@ -1,5 +1,5 @@
 ---
-title: "GEO 511 Final Project"
+title: "Tickborne Pathogen Prevalence and Forest Cover in New York State"
 author: Collin O'Connor
 always_allow_html: yes
 editor_options: 
@@ -9,6 +9,9 @@ editor_options:
 .leaflet-popup-content > img {
     max-width: unset;
 }
+</style>
+<style>
+p {line-height: 2em;}
 </style>
 # Introduction
 
@@ -22,6 +25,7 @@ The deer tick or blacklegged tick (<i>Ixodes scapularis</i>) is the most medical
 
 The prevalence of the above pathogens varies both spatially and temporally in NYS, which results in varying risk for NYS citizens. Because these pathogens are not transmitted from tick to tick transovarially, they are required to be maintained throughout populations of animal hosts in the various ecosystems of NYS. Data suggests that certain land use and land cover types are beneficial for populations of animals which maintain these pathogens, and potentially for the pathogen's themselves. This project aims to explore any trends between pathogen prevalence within <i>I. scapularis</i> at the county level and land use / land cover types in NYS.
 
+<br>
 
 # Materials and methods
 ```{R libload, results='hide',message=FALSE, echo=F}
@@ -32,10 +36,6 @@ library(raster)
 library(sf)
 library(spData)
 library(leaflet)
-library(purrr)
-library(MODIS)
-library(MODISTools)
-library(gdalUtilities)
 library(gdalUtils)
 library(rgdal)
 library(rgeos)
@@ -46,7 +46,10 @@ library(sjmisc)
 library(sjlabelled)
 library(pscl)
 library(tidyr)
+library(sjstats)
 ```
+
+<br>
 
 ## Methods - Software information
 
@@ -54,6 +57,8 @@ All data processing and analysis were preformed using RStudio with the following
 ```{R Version, echo=F}
 sessionInfo()
 ```
+
+<br>
 
 ## Methods - Data Gathering
 
@@ -249,7 +254,7 @@ test2 = test1 %>% mutate(plot = map2(data, County,
 ```
 
 The third and final data source is land use and land cover data from the 2016 National Land Cover Dataset, available at the following link: [NLCD](https://www.mrlc.gov/data/nlcd-2016-land-cover-conus). These data were downloaded using R-specific NLCD calls. The call was looped to iterate the data download for each county, which would then overwrite the previous county's data to conserve storage. The analysis was also grouped into this code, which will be explained later.
-```{r NLCD_data,results='hide',error=F,message=F,warning=F}
+```{r NLCD_data,results='hide',error=F,message=F,warning=F,cache=TRUE}
 
 
 newcounties=County_Boundaries %>% filter(County != "New York",
@@ -281,7 +286,9 @@ for(i in 1:nrow(newcounties)){
         else(df1=rbind(df1,df))}
 ```
 
-## Methods - Data visualization.
+<br>
+
+## Methods - Data visualization
 
 In order to visualize pathogen prevalence throughout NYS, the ggplot and leaflet packages were used to create time-series graphs and interactive maps. The code to create the NYS average pathogen prevalence time-series graph is shown below:
 ```{r makeplot1, echo=TRUE,warning=FALSE,message=FALSE,error=F}
@@ -315,6 +322,8 @@ plot2=leaflet() %>%
                                 group='County',
                                 width=600,height=300)
 ```
+
+<br>
 
 ## Methods - Raster Analysis
 
@@ -364,13 +373,19 @@ df=data.frame(County=paste(newcounties[[i,1]]),
     Percent_Forest_Cover=cellStats(masknew2,stat='sum')/cellStats(masknew3,'sum'))
 ```
 
+<br>
+
 ## Methods - Statistical Analysis
 
 Following the collection of pathogen and raster data, each variable was examined for normality. The distribution of each variable determined the type of analysis used. For analysis, pathogen prevalence was always the dependent variable. If both the percent forest cover and pathogen prevalence variables were normal, a simple test for correlation was used. If the pathogen prevalence variable seemed to follow a negative binomial distribution, the zero-inflated negative binomial regression model was used. 
 
+<br>
+
 # Results
 
-## Results - NYS Average Rates of pathogens within <i> I. scapularis</i> populations
+<br>
+
+## Results - NYS Average Rates Within <i> I. scapularis</i> Populations
 
 ```{r plot1view, echo=F,message=F}
 plot1
@@ -379,7 +394,9 @@ plot1
 Pathogen prevalence in NYS shows a general trend of increase over time. Average rates of each pathogen are consistent with expectations where <i> B. burgdorferi </i> shows the highest prevalence within <i> I. scapularis </i> populations in NYS. <i> A. phagocytophilum </i>, <i> B. microti </i>, and <i> B. miyamotoi </i> exhibit the second, third, and fourth highest prevalence, respectively. Additionally, prevalence of each pathogen is about half as much in nymphal ticks compared to adult ticks. 
 
 
-## Results - County Average Rates within <i> I. scapularis</i> populations
+<br>
+
+## Results - County Average Rates Within <i> I. scapularis</i> Populations
 
 ```{r leafletview, echo=F,message=F}
 plot2
@@ -390,6 +407,28 @@ General takeaways from the interactive county level map are the following:
 1. Rates in the capital district and metropolitan areas of NYS are generally higher than the NYS average, and also have more complete data.
 2. The north county (Adirondack region) has generally prevalence numbers (likely due to low numbers of tick populations).
 3. In counties with complete data, pathogen prevalence generally has risen over time.
+
+<br>
+
+## Results - Forest Cover by County in New York State
+```{r fc_map_setup,results='hide',message=FALSE, warning=F,echo=F}
+choro=left_join(County_Boundaries,df1)
+choro$Percent_Forest_Cover=choro$Percent_Forest_Cover*100
+```
+
+```{r fc_map,echo=F,message=F}
+tm_shape(choro)+
+  tm_graticules(lines=F)+
+  tm_polygons(col="Percent_Forest_Cover",
+              palette = "viridis", n = 5,
+              title="Forest Cover (%)",
+              border.col='black')+
+  tm_compass(position = c('left','bottom'))+
+  tm_scale_bar(position=c('left','bottom'))+
+  tm_layout(main.title = "Area Covered by Mixed/Deciduous Forest",main.title.position = 'center')
+```
+
+<br>
 
 ## Results - Statistical Analysis
 ```{r join_NLCDw_County,results='hide',message=FALSE, echo=F}
@@ -485,16 +524,51 @@ nymph_Bmiya_reg=zeroinfl(formula = Bmiyapos ~ Percent_Forest_Cover |  Percent_Fo
                  data=nymphtestingdata,dist='negbin')
 ```
 
-Results for adult ZINB models are shown below:
+<br>
+
+Significance for adult ZINB models are shown below:
 ```{r adulttable,echo=F,message=F,warning=F,comment=F}
-tab_model(adult_ANA_reg,adult_Bmic_reg,adult_Bmiya_reg,title = "Adult Regression Results",dv.labels = c("A. phagocytophilum","B. microti","B. miyamotoi"),show.r2 = F,digits=4)
+tab_model(adult_ANA_reg,adult_Bmic_reg,adult_Bmiya_reg,title = "Adult Regression Results",dv.labels = c("A. phagocytophilum","B. microti","B. miyamotoi"),show.r2 = F,show.ci=F,show.est = F,digits=2)
 ```
 
-Results for nymphal ZINB models are shown below:
+<br>
+
+Coefficient of adult <i> B. miyamotoi </i> model shown below:
+```{r adult_sig_coeff}
+adult_Bmiya_reg$coefficients$count
+```
+
+<br>
+
+Significance for nymphal ZINB models are shown below:
 ```{r nymphtable,echo=F,message=F,warning=F,comment=F}
-tab_model(nymph_ANA_reg,nymph_Bmic_reg,nymph_Bmiya_reg,title = "Nymphal Regression Results",dv.labels = c("A. phagocytophilum","B. microti","B. miyamotoi"),show.r2 = F,digits = 4)
+tab_model(nymph_ANA_reg,nymph_Bmic_reg,nymph_Bmiya_reg,title = "Nymphal Regression Results",dv.labels = c("A. phagocytophilum","B. microti","B. miyamotoi"),show.r2 = F,show.ci = F,show.est = F,digits=2)
 ```
 
+<br>
+
+Coefficient of statistically significant nymphal models shown below:
+
+<br>
+
+Nymphal <i> A. phagocyotphilum </i> zero-inflated model:
+```{r nymphANA_sig_coeff}
+nymph_ANA_reg$coefficients$zero
+```
+
+<br>
+
+Nymphal <i> B. microti </i> count model:
+```{r nymphBm_sig_coeff}
+nymph_Bmic_reg$coefficients$count
+```
+
+<br>
+
+Nymphal <i> B. miyamotoi </i> count model:
+```{r nymphBmiya_sig_coeff}
+nymph_Bmiya_reg$coefficients$count
+```
 # Conclusions
 
 Tickborne pathogen prevalence in NYS is an ever-increasing problem. NYSDOH Vector Ecology Laboratory tick sampling indicates that pathogen prevalence for <i> B. burgdorferi </i>, <i> A. phagocytophilum </i>, <i> B. microti </i>, and <i> B. miyamotoi </i> have been increasing over time. Increases in pathogen prevalence provides a warning for increased risk of tickborne disease for NYS citizens. Although the prevalence of each pathogen, and thus, risk for disease differs by county, the general trend indicates that tickborne disease will be an issue for years to come in NYS. The interactive map in this project provides a user-friendly ability to navigate publicly available data to determine the potential risk for tickborne pathogen exposure in your county. 
@@ -512,6 +586,8 @@ In summation, the two takeaways from this project are the following:
 
 1. Tick pathogen prevalence has been increasing over time in NYS.
 2. A more detailed analysis is required to examine the role forest cover plays with pathogen prevalence.
+
+<br>
 
 # References
 
