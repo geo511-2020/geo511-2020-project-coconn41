@@ -13,7 +13,7 @@ editor_options:
 <style>
 p {line-height: 2em;}
 </style>
-# Introduction
+# Introduction 
 
 
 The deer tick or blacklegged tick (<i>Ixodes scapularis</i>) is the most medically relevant species of hard tick that in New York State (NYS). <i>I. scapularis</i> populations in NYS may carry a plethora of pathogens, including but not limited to:
@@ -60,7 +60,7 @@ sessionInfo()
 
 <br>
 
-## Methods - Data Gathering
+## Methods - Data Gathering 
 
 The data for this project are gathered from three main sources. The first source is the New York State Department of Health (NYSDOH) Vector Ecology Laboratory's tick borne pathogen surveillance dataset. This dataset contains tick field surveillance data throughout NYS from 2008 - present, as well as corresponding PCR testing data for the four pathogens mentioned in the introduction. These data are spatially aggregated to the county level and are available online at the following links for [Nymphs](https://health.data.ny.gov/api/views/kibp-u2ip/rows.csv?accessType=DOWNLOAD&bom=true&query=select+*) and [Adults](https://health.data.ny.gov/api/views/vzbp-i2d4/rows.csv?accessType=DOWNLOAD&bom=true&query=select+*): These data were gathered into R using the following code:
 ```{R tick_data_load, echo=TRUE,warning=FALSE,message=FALSE}
@@ -385,7 +385,7 @@ Following the collection of pathogen and raster data, each variable was examined
 
 <br>
 
-## Results - NYS Average Rates Within <i> I. scapularis</i> Populations
+## Results - NYS Average Rates Within <i> I. scapularis</i> Populations 
 
 ```{r plot1view, echo=F,message=F}
 plot1
