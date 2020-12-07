@@ -1,105 +1,594 @@
 ---
-title: "My Final Project Template"
-author: Your name here
-subtitle: Subtitle here if desired
+title: "Tickborne Pathogen Prevalence and Forest Cover in New York State"
+author: Collin O'Connor
+always_allow_html: yes
+editor_options: 
+  chunk_output_type: console
 ---
-
+<style>
+.leaflet-popup-content > img {
+    max-width: unset;
+}
+</style>
+<style>
+p {line-height: 2em;}
+</style>
 # Introduction
 
-[~ 200 words]
 
-Clearly stated background and questions / hypotheses / problems being addressed. Sets up the analysis in an interesting and compelling way.
+The deer tick or blacklegged tick (<i>Ixodes scapularis</i>) is the most medically relevant species of hard tick that in New York State (NYS). <i>I. scapularis</i> populations in NYS may carry a plethora of pathogens, including but not limited to:
+
+* <i>Borrelia burgdorferi</i> - the causitive agent of Lyme disease
+* <i>Anaplasma phagocytophilum</i> - the causitive agent of human granulocytic anaplasmosis
+* <i>Babesia microti</i> - the causitive agent of babesiosis in humans
+* <i>Borrelia miyamotoi</i> - causative of a relapsing tick fever 
+
+The prevalence of the above pathogens varies both spatially and temporally in NYS, which results in varying risk for NYS citizens. Because these pathogens are not transmitted from tick to tick transovarially, they are required to be maintained throughout populations of animal hosts in the various ecosystems of NYS. Data suggests that certain land use and land cover types are beneficial for populations of animals which maintain these pathogens, and potentially for the pathogen's themselves. This project aims to explore any trends between pathogen prevalence within <i>I. scapularis</i> at the county level and land use / land cover types in NYS.
+
+<br>
 
 # Materials and methods
-
-[~ 200 words]
-
-Narrative: Clear narrative description of the data sources and methods. Includes data from at least two sources that were integrated / merged in R.
-
-Code: The code associated with the project is well organized and easy to follow. Demonstrates mastery of R graphics and functions.
-
-Data: The underlying data are publicly accessible via the web and downloaded/accessed within the Rmd script. If you want to use your own data, you must make it available on a website (e.g. Figshare) so that others are able to re-run your code.
-
-You can do bullets like this:
-
-* The first most important thing
-* The second most important thing
-* The third most important thing
-
-You can do numbers like this:
-
-1. The first most important thing
-2. The second most important thing
-3. The third most important thing
-
-See [http://rmarkdown.rstudio.com/](http://rmarkdown.rstudio.com/) for all the amazing things you can do.
-
-
-Here's my first code chunk.
-```{r}
-1+2
-```
-
-Load any required packages in a code chunk (you may need to install some packages):
-
-```{r, message=F, warning=F}
+```{R libload, results='hide',message=FALSE, echo=F}
+library(readr)
 library(tidyverse)
+library(FedData)
+library(raster)
+library(sf)
+library(spData)
 library(leaflet)
-library(kableExtra)
-knitr::opts_chunk$set(cache=TRUE)  # cache the results for quick compiling
+library(gdalUtils)
+library(rgdal)
+library(rgeos)
+library(tmap)
+library(glue)
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+library(pscl)
+library(tidyr)
+library(sjstats)
 ```
 
-## Download and clean all required data
-```{r}
-n=20
-data=data.frame(x=runif(n,-180,180),
-                y=runif(n,-60,60),
-                size = runif(n, 5, 20),
-                category = factor(
-                  sample(letters[1:5], n, replace = TRUE)
-                  ),
-                value = rnorm(n))
+<br>
+
+## Methods - Software information
+
+All data processing and analysis were preformed using RStudio with the following version specifications and packages:
+```{R Version, echo=F}
+sessionInfo()
 ```
 
-```{r, results='asis'}
-data %>% 
-  slice(1:10) %>% #show only 1:n rows
-  kable(digits=2,align="c")%>% #make table and round to two digits
-  kable_styling(bootstrap_options = 
-                  c("striped", "hover", "condensed", "responsive")) #apply other formatting
+<br>
+
+## Methods - Data Gathering
+
+The data for this project are gathered from three main sources. The first source is the New York State Department of Health (NYSDOH) Vector Ecology Laboratory's tick borne pathogen surveillance dataset. This dataset contains tick field surveillance data throughout NYS from 2008 - present, as well as corresponding PCR testing data for the four pathogens mentioned in the introduction. These data are spatially aggregated to the county level and are available online at the following links for [Nymphs](https://health.data.ny.gov/api/views/kibp-u2ip/rows.csv?accessType=DOWNLOAD&bom=true&query=select+*) and [Adults](https://health.data.ny.gov/api/views/vzbp-i2d4/rows.csv?accessType=DOWNLOAD&bom=true&query=select+*): These data were gathered into R using the following code:
+```{R tick_data_load, echo=TRUE,warning=FALSE,message=FALSE}
+tdir=tempdir()
+adulturl <- "https://health.data.ny.gov/api/views/vzbp-i2d4/rows.csv?accessType=DOWNLOAD&bom=true&query=select+*"
+nymphurl <- "https://health.data.ny.gov/api/views/kibp-u2ip/rows.csv?accessType=DOWNLOAD&bom=true&query=select+*"
+if(file.exists(paste(tdir,"/Adultdata.csv",sep=""))==FALSE){
+download.file(adulturl, destfile = file.path(tdir,"/Adultdata.csv"))}
+if(file.exists(paste(tdir,"/Nymphdata.csv",sep=""))==FALSE){
+download.file(nymphurl,destfile = file.path(tdir,"/Nymphdata.csv"))}
+Nymphdata <- read_csv(paste(tdir,"/Nymphdata.csv",sep=""))
+Adultdata <- read_csv(paste(tdir,"/Adultdata.csv",sep=""))
 ```
 
-Add any additional processing steps here.
+The second data source is county-level shapefiles from NYS GIS clearinghouse, available at the following link: [NYS GIS Clearinghouse]("http://gis.ny.gov/gisdata/fileserver/?DSID=927&file=NYS_Civil_Boundaries.shp.zip"). These data were read into R using the following code:
+```{r NYSshpfiles,echo=T,results='hide',warning=F,message=F,error=F}
+shpurl="http://gis.ny.gov/gisdata/fileserver/?DSID=927&file=NYS_Civil_Boundaries.shp.zip"
+if(file.exists(paste(tdir,"/NYS_Civil_Boundaries_SHP/Counties_Shoreline.shp",sep=""))==FALSE){
+download.file(shpurl, destfile = file.path(tdir,"Boundaries.zip"))
+unzip(file.path(tdir,"Boundaries.zip"),exdir = tdir)}
+Cnt=read_sf(paste(tdir,"/NYS_Civil_Boundaries_SHP/Counties_Shoreline.shp",sep=""))
+County_Boundaries = Cnt[,c(1,18)]
+NYS = st_union(County_Boundaries)
+simpSpNYS=st_simplify(NYS,dTolerance=100)
+SpNYS=as(NYS,Class="Spatial")
+```
+
+```{r, average_plotsetup,results='hide',message=FALSE,warning=F,echo=F}
+names(Adultdata)[6]="Total_Tested"
+Adult_BBdat=Adultdata[,1:7]
+Adult_BBdat$Pathogen="Borrelia burgdorferi"
+names(Adult_BBdat)[7]="Percent_Positive"
+Adult_Apdat=Adultdata[,c(1:6,8)]
+Adult_Apdat$Pathogen="Anaplasma phagocytophilum"
+names(Adult_Apdat)[7]="Percent_Positive"
+Adult_Bmiydat=Adultdata[,c(1:6,10)]
+Adult_Bmiydat$Pathogen="Borrelia miyamotoi"
+names(Adult_Bmiydat)[7]="Percent_Positive"
+Adult_Bmicdat=Adultdata[,c(1:6,9)]
+Adult_Bmicdat$Pathogen="Babesia microti"
+names(Adult_Bmicdat)[7]="Percent_Positive"
+Adultnewdat1 = rbind(Adult_BBdat,Adult_Apdat)
+Adultnewdat1 = rbind(Adultnewdat1,Adult_Bmiydat)
+Adultnewdat1 = rbind(Adultnewdat1,Adult_Bmicdat)
+Adultnewdat1$`Percent Positiveby100`=Adultnewdat1$`Percent_Positive`/100
+Adultnewdat1$Totpos=round(Adultnewdat1$`Total_Tested`*Adultnewdat1$`Percent Positiveby100`)
+Adultnewdat2 = subset(Adultnewdat1,is.na(Adultnewdat1$Percent_Positive)==FALSE)
+
+Adulttotpos = Adultnewdat2 %>%
+        group_by(Year,Pathogen) %>%
+        summarize(sum(Totpos))
+Adulttotpos$`sum(Totpos)` = ifelse(is.na(Adulttotpos$`sum(Totpos)`)==TRUE,0,Adulttotpos$`sum(Totpos)`)
+Adulttottested = Adultnewdat2 %>%
+        group_by(Year,Pathogen) %>%
+        summarize(sum(Total_Tested))
+Adultgroupings=cbind(Adulttottested,Adulttotpos)
+Adultgroupings=Adultgroupings[,c(1:3,6)]
+Adultgroupings$percpos=(Adultgroupings$`sum(Totpos)`/Adultgroupings$`sum(Total_Tested)`)*100
+names(Adultgroupings)[1]="Year"
+names(Adultgroupings)[2]="Pathogen"
+Adultgroupings$`Life Stage`="Adult"
+
+names(Nymphdata)[6]="Total_Tested"
+Nymph_BBdat=Nymphdata[,1:7]
+Nymph_BBdat$Pathogen="Borrelia burgdorferi"
+names(Nymph_BBdat)[7]="Percent_Positive"
+Nymph_Apdat=Nymphdata[,c(1:6,8)]
+Nymph_Apdat$Pathogen="Anaplasma phagocytophilum"
+names(Nymph_Apdat)[7]="Percent_Positive"
+Nymph_Bmiydat=Nymphdata[,c(1:6,10)]
+Nymph_Bmiydat$Pathogen="Borrelia miyamotoi"
+names(Nymph_Bmiydat)[7]="Percent_Positive"
+Nymph_Bmicdat=Nymphdata[,c(1:6,9)]
+Nymph_Bmicdat$Pathogen="Babesia microti"
+names(Nymph_Bmicdat)[7]="Percent_Positive"
+Nymphnewdat1 = rbind(Nymph_BBdat,Nymph_Apdat)
+Nymphnewdat1 = rbind(Nymphnewdat1,Nymph_Bmiydat)
+Nymphnewdat1 = rbind(Nymphnewdat1,Nymph_Bmicdat)
+Nymphnewdat1$`Percent Positiveby100`=Nymphnewdat1$`Percent_Positive`/100
+Nymphnewdat1$Totpos=round(Nymphnewdat1$`Total_Tested`*Nymphnewdat1$`Percent Positiveby100`)
+Nymphnewdat2 = subset(Nymphnewdat1,is.na(Nymphnewdat1$Percent_Positive)==FALSE)
+
+Nymphtotpos = Nymphnewdat2 %>%
+        group_by(Year,Pathogen) %>%
+        summarize(sum(Totpos))
+Nymphtotpos$`sum(Totpos)` = ifelse(is.na(Nymphtotpos$`sum(Totpos)`)==TRUE,0,Nymphtotpos$`sum(Totpos)`)
+Nymphtottested = Nymphnewdat2 %>%
+        group_by(Year,Pathogen) %>%
+        summarize(sum(Total_Tested))
+Nymphgroupings=cbind(Nymphtottested,Nymphtotpos)
+Nymphgroupings=Nymphgroupings[,c(1:3,6)]
+Nymphgroupings$percpos=(Nymphgroupings$`sum(Totpos)`/Nymphgroupings$`sum(Total_Tested)`)*100
+names(Nymphgroupings)[1]="Year"
+names(Nymphgroupings)[2]="Pathogen"
+Nymphgroupings$`Life Stage`="Nymph"
+
+All_groupings=rbind(Adultgroupings,Nymphgroupings)
+```
+
+```{r county_subplots_setup,results='hide',message=FALSE, warning=F,echo=F}
+Ad_county_totpos = Adultnewdat1 %>%
+        group_by(Year,Pathogen,County) %>%
+        summarize(sum(Totpos))
+Ad_county_tottested = Adultnewdat1 %>%
+        group_by(Year,Pathogen,County) %>%
+        summarize(sum(Total_Tested))
+Ad_county_groupings=cbind(Ad_county_tottested,Ad_county_totpos)
+Ad_county_groupings=Ad_county_groupings[,c(1:4,8)]
+Ad_county_groupings$percpos=Ad_county_groupings$`sum(Totpos)`/(Ad_county_groupings$`sum(Total_Tested)`)*100
+names(Ad_county_groupings)=c("Year","Pathogen","County","sum(Total_Tested)","sum(Totpos)","percpos")
+Ad_county_groupings$`Life Stage`="Adult"
+
+Ny_county_totpos = Nymphnewdat1 %>%
+        group_by(Year,Pathogen,County) %>%
+        summarize(sum(Totpos))
+Ny_county_tottested = Nymphnewdat1 %>%
+        group_by(Year,Pathogen,County) %>%
+        summarize(sum(Total_Tested))
+Ny_county_groupings=cbind(Ny_county_tottested,Ny_county_totpos)
+Ny_county_groupings=Ny_county_groupings[,c(1:4,8)]
+Ny_county_groupings$percpos=Ny_county_groupings$`sum(Totpos)`/(Ny_county_groupings$`sum(Total_Tested)`)*100
+names(Ny_county_groupings)=c("Year","Pathogen","County","sum(Total_Tested)","sum(Totpos)","percpos")
+Ny_county_groupings$`Life Stage`="Nymph"
+
+All_county_groupings=rbind(Ad_county_groupings,Ny_county_groupings)
+All_county_groupings = subset(All_county_groupings,All_county_groupings$`sum(Total_Tested)`>0)
+All_county_groupings = subset(All_county_groupings,is.na(All_county_groupings$`sum(Totpos)`)==FALSE)
+Allcnts=as.data.frame(list(unique(All_county_groupings$County)))
+names(Allcnts)[1]="County"
+Allcnts$ID=c(1:length(unique(All_county_groupings$County)))
+All_county_groupings=left_join(All_county_groupings,Allcnts)
+
+All_county_groupings=All_county_groupings[c(-8)]
+test_copy=All_groupings
+test_copy=test_copy[-c(3,4)]
+names(test_copy)[3]="Avg_pos"
+test_copy$Pathogen=ifelse(test_copy$Pathogen=="Anaplasma phagocytophilum","A. phagocytophilum",
+                          ifelse(test_copy$Pathogen=="Babesia microti","B. microti",
+                                 ifelse(test_copy$Pathogen=="Borrelia burgdorferi","B. burgdorferi",
+                                        ifelse(test_copy$Pathogen=="Borrelia miyamotoi","B. miyamotoi",NA))))
+test_copy$Pathogen1=ifelse(test_copy$Pathogen=="A. phagocytophilum","NYS Average A. phagocytophilum",
+                           ifelse(test_copy$Pathogen=="B. microti","NYS Average B. microti",
+                                  ifelse(test_copy$Pathogen=="B. burgdorferi","NYS Average B. burgdorferi",
+                                         ifelse(test_copy$Pathogen=="B. miyamotoi","NYS Average B. miyamotoi",NA))))
+All_county_groupings$Pathogen=ifelse(All_county_groupings$Pathogen=="Anaplasma phagocytophilum","A. phagocytophilum",
+                          ifelse(All_county_groupings$Pathogen=="Babesia microti","B. microti",
+                                 ifelse(All_county_groupings$Pathogen=="Borrelia burgdorferi","B. burgdorferi",
+                                        ifelse(All_county_groupings$Pathogen=="Borrelia miyamotoi","B. miyamotoi",NA))))
+asdf=as.data.frame(c(2008:2019))
+names(County_Boundaries)[1]="County"
+names(asdf)[1]="Year"
+asdf$County= c(subset(County_Boundaries$County, !(County_Boundaries$County %in%  All_county_groupings$County)),
+               subset(County_Boundaries$County, !(County_Boundaries$County %in%  All_county_groupings$County)))
+asdf$Pathogen=c("A. phagocytophilum","B. microti","B. miyamotoi","B. burgdorferi","A. phagocytophilum",
+                "B. microti","B. miyamotoi","B. burgdorferi","A. phagocytophilum","B. microti","B. miyamotoi","B. burgdorferi")
+asdf$Life_Stage=c("Nymph","Nymph","Nymph","Nymph","Nymph","Nymph",
+                  "Adult","Adult","Adult","Adult","Adult","Adult")
+
+asdf2=tidyr::expand(asdf,Year,County,Pathogen,Life_Stage)
+asdf2$Total_tested=0
+asdf2$Tot_pos=0
+asdf2$percpos=0
+names(All_county_groupings)[4]="Total_tested"
+names(All_county_groupings)[5]="Tot_pos"
+names(All_county_groupings)[7]="Life_Stage"
+All_county_groupings2=rbind(All_county_groupings,asdf2)
+All_county_groupings3=tidyr::expand(All_county_groupings2,Year,Pathogen,County,Life_Stage)
+
+All_county_groupings4=left_join(All_county_groupings3,All_county_groupings,by=c("Year","Pathogen","Life_Stage","County"))
+names(test_copy)[4]="Life_Stage"
+
+
+
+test1 = All_county_groupings4 %>%
+        nest(-County)
+
+test2 = test1 %>% mutate(plot = map2(data, County, 
+                             ~ggplot()+ 
+                                     geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7)+
+                                     geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7)+
+                                     geom_line(data=.x,aes(x=Year,y=percpos,color=Pathogen))+
+                                     geom_point(data=.x,aes(x=Year,y=percpos,color=Pathogen))+ scale_color_manual(name="Pathogen",values=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","#E41A1C","#377EB8","#4DAF4A","#984EA3"))+
+                                     geom_line(data=test_copy,aes(x=Year,y=Avg_pos,color=Pathogen,linetype="NYS Average Pathogen Prevalence"))+
+                                     scale_linetype_manual("",values = c(2,2,2,2,1,1,1,1))+
+                                     theme(axis.text.x = element_text(angle=65,vjust=.65))+
+                                     facet_wrap(~Life_Stage)+
+                                     scale_x_continuous(breaks=c(2008:2019))+
+                                     ylab("Pathogen Prevalence (%)")+
+                                     labs(caption="Solid lines indicate pathogen prevalence from sample specimens in County")+
+                                     ggtitle(glue("{.y}"))))
+```
+
+The third and final data source is land use and land cover data from the 2016 National Land Cover Dataset, available at the following link: [NLCD](https://www.mrlc.gov/data/nlcd-2016-land-cover-conus). These data were downloaded using R-specific NLCD calls. The call was looped to iterate the data download for each county, which would then overwrite the previous county's data to conserve storage. The analysis was also grouped into this code, which will be explained later.
+```{r NLCD_data,results='hide',error=F,message=F,warning=F,cache=TRUE}
+
+
+newcounties=County_Boundaries %>% filter(County != "New York",
+                                         County != "Queens",
+                                         County != "Kings",
+                                         County != "Richmond",
+                                         County != "Bronx")
+st_transform(newcounties,crs="+proj=utm +zone=18 +datum=NAD83 +units=m +no_defs")
+df1=NULL
+
+for(i in 1:nrow(newcounties)){
+        NLCD=get_nlcd(template = st_as_sf(newcounties[i,]),
+                      year = 2016,
+                      label="Same",
+                      dataset='Land_Cover',
+                      landmass="L48",
+                      extraction.dir = tdir,
+                      force.redo = T)
+        NLCD2=projectRaster(from=NLCD,crs="+proj=utm +zone=18 +datum=NAD83 +units=m +no_defs")
+        cropnew=crop(NLCD2,extent(newcounties[i,]))
+        masknew=mask(cropnew,newcounties[i,])
+        masknew2= masknew %in% c(41,43)
+        masknew3=masknew/masknew
+        df=data.frame(County=paste(newcounties[[i,1]]),
+                      Total_Pixels=cellStats(masknew3,'sum'),
+                      Total_Forest_Pixels=cellStats(masknew2,stat='sum'),
+                      Percent_Forest_Cover=cellStats(masknew2,stat='sum')/cellStats(masknew3,'sum'))
+        if(is.null(df1)==TRUE){df1=df}
+        else(df1=rbind(df1,df))}
+```
+
+<br>
+
+## Methods - Data visualization
+
+In order to visualize pathogen prevalence throughout NYS, the ggplot and leaflet packages were used to create time-series graphs and interactive maps. The code to create the NYS average pathogen prevalence time-series graph is shown below:
+```{r makeplot1, echo=TRUE,warning=FALSE,message=FALSE,error=F}
+plot1=ggplot(data = All_groupings,aes(x=Year,y=percpos,color=Pathogen)) +
+        geom_line() +
+        ggtitle(expression(paste("Time Series Graph of ", italic("Ixodes scapularis")," Infectivity Rates (NYS)",sep=""))) +
+        theme(axis.text.x = element_text(angle=65,vjust=.65)) +
+        geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7) +
+        geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7) +
+        facet_wrap(~`Life Stage`) +
+        ylab("Pathogen Prevalence (%)")+
+        scale_x_continuous(breaks=c(2008:2019))
+```
+
+The code to create an interactive map where each clicking each county displays a time-series graph comparing county-level pathogen rates to the NYS average is shown below:
+```{r interactive, echo=TRUE,warning=FALSE,message=FALSE,error=F}
+County_Boundaries=st_transform(County_Boundaries,CRS("+proj=longlat +datum=WGS84"))
+names(County_Boundaries)[1]="County"
+test_new=left_join(County_Boundaries,test2,by='County')
+plot2=leaflet() %>%
+        addTiles() %>%
+        addPolygons(data=test_new,
+                    group='County',
+                    weight=1,
+                    label=~County,
+                    highlight=highlightOptions(
+                        weight=5,
+                        color='red',
+                        bringToFront=TRUE)) %>%
+        leafpop::addPopupGraphs(graph=test_new$plot,
+                                group='County',
+                                width=600,height=300)
+```
+
+<br>
+
+## Methods - Raster Analysis
+
+NLCD Raster data were used to determine the percent of deciduous and mixed (deciduous/coniferous) forest that covered each county. The code to calculate this data was shown earlier, but a detailed explanation (which ignores the loop) is shown below.
+
+Data for each county is downloaded via this code:
+``` {r explanation1,eval=F,echo=T}
+        NLCD=get_nlcd(template = st_as_sf(newcounties[i,]),
+                      year = 2016,
+                      label="Same",
+                      dataset='Land_Cover',
+                      landmass="L48",
+                      extraction.dir = tdir,
+                      force.redo = T)
+```
+
+The downloaded raster is then projected on to WGS84:
+``` {r explanation2,eval=F,echo=T}
+NLCD2=projectRaster(from=NLCD,crs='+proj=longlat +datum=WGS84')
+``` 
+
+The projected raster is then cropped to the extent of the county required:
+``` {r explanation3,eval=F,echo=T}
+cropnew=crop(NLCD2,extent(newcounties[i,]))
+``` 
+
+The cropped raster is then masked by the county required:
+``` {r explanation4,eval=F,echo=T}
+masknew=mask(cropnew,newcounties[i,])
+``` 
+
+The masked raster is then filtered to only include either deciduous or mixed forest pixels:
+``` {r explanation5,eval=F,echo=T}
+masknew2= masknew %in% c(41,43)
+``` 
+
+All pixel values of the original masked raster are then changed to a value of 1, in order to calculate the total number of pixels in the raster:
+``` {r explanation6,eval=F,echo=T}
+masknew3=masknew/masknew
+``` 
+
+A dataframe is then compiled which includes the name of the County, the total number of pixels within that county, the total number of mixed/deciduous forest pixels within the county, and the percent of pixels which are mixed/deciduous.
+``` {r explanation7,eval=F,echo=T}
+df=data.frame(County=paste(newcounties[[i,1]]),
+    Total_Pixels=cellStats(masknew3,'sum'),
+    Total_Forest_Pixels=cellStats(masknew2,stat='sum'),
+    Percent_Forest_Cover=cellStats(masknew2,stat='sum')/cellStats(masknew3,'sum'))
+```
+
+<br>
+
+## Methods - Statistical Analysis
+
+Following the collection of pathogen and raster data, each variable was examined for normality. The distribution of each variable determined the type of analysis used. For analysis, pathogen prevalence was always the dependent variable. If both the percent forest cover and pathogen prevalence variables were normal, a simple test for correlation was used. If the pathogen prevalence variable seemed to follow a negative binomial distribution, the zero-inflated negative binomial regression model was used. 
+
+<br>
 
 # Results
 
-[~200 words]
+<br>
 
-Tables and figures (maps and other graphics) are carefully planned to convey the results of your analysis. Intense exploration and evidence of many trials and failures. The author looked at the data in many different ways before coming to the final presentation of the data.
+## Results - NYS Average Rates Within <i> I. scapularis</i> Populations
 
-Show tables, plots, etc. and describe them.
-
-```{r, fig.width=6, fig.height=3, fig.cap="Map of completely random data"}
-m <- leaflet(data) %>% 
-  addTiles() %>% 
-  addCircleMarkers(~x, ~y, radius = ~size,color = ~as.factor(category)) %>% 
-  addPopups(~x[2], ~y[2], "Random popup")
-m  # a map with the default OSM tile layer
+```{r plot1view, echo=F,message=F}
+plot1
 ```
 
+Pathogen prevalence in NYS shows a general trend of increase over time. Average rates of each pathogen are consistent with expectations where <i> B. burgdorferi </i> shows the highest prevalence within <i> I. scapularis </i> populations in NYS. <i> A. phagocytophilum </i>, <i> B. microti </i>, and <i> B. miyamotoi </i> exhibit the second, third, and fourth highest prevalence, respectively. Additionally, prevalence of each pathogen is about half as much in nymphal ticks compared to adult ticks. 
 
-```{r}
-data %>% 
-  ggplot(aes(x=x,y=y,col=category))+
-  geom_point()
+
+<br>
+
+## Results - County Average Rates Within <i> I. scapularis</i> Populations
+
+```{r leafletview, echo=F,message=F}
+plot2
 ```
 
+General takeaways from the interactive county level map are the following:
+
+1. Rates in the capital district and metropolitan areas of NYS are generally higher than the NYS average, and also have more complete data.
+2. The north county (Adirondack region) has generally prevalence numbers (likely due to low numbers of tick populations).
+3. In counties with complete data, pathogen prevalence generally has risen over time.
+
+<br>
+
+## Results - Forest Cover by County in New York State
+```{r fc_map_setup,results='hide',message=FALSE, warning=F,echo=F}
+choro=left_join(County_Boundaries,df1)
+choro$Percent_Forest_Cover=choro$Percent_Forest_Cover*100
+```
+
+```{r fc_map,echo=F,message=F}
+tm_shape(choro)+
+  tm_graticules(lines=F)+
+  tm_polygons(col="Percent_Forest_Cover",
+              palette = "viridis", n = 5,
+              title="Forest Cover (%)",
+              border.col='black')+
+  tm_compass(position = c('left','bottom'))+
+  tm_scale_bar(position=c('left','bottom'))+
+  tm_layout(main.title = "Area Covered by Mixed/Deciduous Forest",main.title.position = 'center')
+```
+
+<br>
+
+## Results - Statistical Analysis
+```{r join_NLCDw_County,results='hide',message=FALSE, echo=F}
+adulttestingdata=left_join(Adultdata,df1)
+nymphtestingdata=left_join(Nymphdata,df1)
+```
+
+```{r examine_Forest_Cover,message=FALSE, echo=F}
+hist(df1$Percent_Forest_Cover,
+     xlab="Percent of County Area (Mixed/Deciduous Forest)",
+     main="Histogram of County Areas")
+```
+
+The percent area of each county covered by deciduous or mixed forest appears normally distributed.
+
+```{r adult_prevalence_viz,message=FALSE, echo=F}
+par(mfrow=c(2,2))
+hist(adulttestingdata$`B. burgdorferi (%)`,
+     xlab=expression(paste(italic("B. burgdorferi")," Prevalence",sep="")),
+     main=expression(paste("Historgram of ",italic("B. burgdorferi")," Prevalence",sep="")))
+hist(adulttestingdata$`A. phagocytophilum (%)`,
+     xlab=expression(paste(italic("A. phagocytophilum")," Prevalence",sep="")),
+     main=expression(paste("Histogram of ",italic("A. phagocytophilum")," Prevalence",sep="")))
+hist(adulttestingdata$`B. microti (%)`,
+     xlab=expression(paste(italic("B. microti")," Prevalence",sep="")),
+     main=expression(paste("Histogram of ",italic("B. microti")," Prevalence",sep="")))
+hist(adulttestingdata$`B. miyamotoi (%)`,
+     xlab=expression(paste(italic("B. miyamotoi")," Prevalence",sep="")),
+     main=expression(paste("Histogram of ",italic("B. miyamotoi")," Prevalence",sep="")))
+```
+
+<i>B. burgdorferi</i> appears to be the only normally distributed pathogen data among adults. This likely occurs because it has the highest pathogen prevalence and is endemic throughout NYS. Prevalence among all other pathogens appears to be zero-inflated, likely because numbers are low. Lower numbers makes the pathogen data approach a Poisson/Negative Binomial distribution because it is count data.
+
+```{r Nymph_prev_viz,message=FALSE, echo=F}
+par(mfrow=c(2,2))
+hist(nymphtestingdata$`B. burgdorferi (%)`,
+     xlab=expression(paste(italic("B. burgdorferi")," Prevalence",sep="")),
+     main=expression(paste("Historgram of ",italic("B. burgdorferi")," Prevalence",sep="")))
+hist(nymphtestingdata$`A. phagocytophilum (%)`,
+     xlab=expression(paste(italic("A. phagocytophilum")," Prevalence",sep="")),
+     main=expression(paste("Histogram of ",italic("A. phagocytophilum")," Prevalence",sep="")))
+hist(nymphtestingdata$`B. microti (%)`,
+     xlab=expression(paste(italic("B. microti")," Prevalence",sep="")),
+     main=expression(paste("Histogram of ",italic("B. microti")," Prevalence",sep="")))
+hist(nymphtestingdata$`B. miyamotoi (%)`,
+     xlab=expression(paste(italic("B. miyamotoi")," Prevalence",sep="")),
+     main=expression(paste("Histogram of ",italic("B. miyamotoi")," Prevalence",sep="")))
+```
+
+Similar to adults, <i>B. burgdorferi</i> prevalence among nymphs near normal. All others approach Poisson/Negative Binomial distribution. Due to the normality of <i> B. burgdorferi </i>, Pearson correlation tests were used to examine the relationship between percent mixed/deciduous forest cover and <i> B. burgdorferi </i> prevalence.
+
+Adult test is shown below:
+```{r Burgdorferi_correlations,message=FALSE, echo=F}
+cor.test(adulttestingdata$Percent_Forest_Cover,adulttestingdata$`B. burgdorferi (%)`)
+```
+
+The p-value from the test of correlation between county-level percent forest cover and adult <i>B. burgdorferi</i> prevalence fails to reject the null hypothesis, indicating there is no correlation in this sample. 
+
+Nymph test is shown below:
+```{r Nymphcorrs, message=F,echo=F}
+cor.test(nymphtestingdata$Percent_Forest_Cover,nymphtestingdata$`B. burgdorferi (%)`)
+```
+
+Similar to adults, the p-value from the test of correlation between county-level percent forest cover and nymphal <i>B. burgdorferi</i> prevalence fails to reject the null hypothesis, indicating there is no correlation in this sample. 
+
+```{r adultzeroinfsetup,results='hide',message=FALSE, echo=F}
+adulttestingdata$ANApos=round((adulttestingdata$`A. phagocytophilum (%)`/100)*adulttestingdata$Total_Tested)
+adulttestingdata$Bmicpos=round((adulttestingdata$`B. microti (%)`/100)*adulttestingdata$Total_Tested)
+adulttestingdata$Bmiyapos=round((adulttestingdata$`B. miyamotoi (%)`/100)*adulttestingdata$Total_Tested)
+```
+```{r nymphzeroinfsetup,results='hide',message=FALSE, echo=F}
+nymphtestingdata$ANApos=round((nymphtestingdata$`A. phagocytophilum (%)`/100)*nymphtestingdata$Total_Tested)
+nymphtestingdata$Bmicpos=round((nymphtestingdata$`B. microti (%)`/100)*nymphtestingdata$Total_Tested)
+nymphtestingdata$Bmiyapos=round((nymphtestingdata$`B. miyamotoi (%)`/100)*nymphtestingdata$Total_Tested)
+```
+
+To examine the relationship between percent mixed/deciduous forest cover and <i> A. phagocytophilum </i>, <i> B. microti </i>, and <i> B. miyamotoi </i> prevalence, zero-inflated negative binomial (ZINB) models were used. The dependent variable for each count and zero-inflated model was the count of a particular pathogen, where the independent variable was percent mixed/deciduous forest cover. Code to create each model for both adults and nymphs is shown below:
+```{r adultregression,results='hide',message=F,error=F,warning=F}
+adult_ANA_reg=zeroinfl(formula = ANApos ~ Percent_Forest_Cover |  Percent_Forest_Cover,
+                 data=adulttestingdata,dist='negbin')
+adult_Bmic_reg=zeroinfl(formula = Bmicpos ~ Percent_Forest_Cover |  Percent_Forest_Cover,
+                 data=adulttestingdata,dist='negbin')
+adult_Bmiya_reg=zeroinfl(formula = Bmiyapos ~ Percent_Forest_Cover |  Percent_Forest_Cover,
+                 data=adulttestingdata,dist='negbin')
+```
+
+```{r nymphregression,results='hide',message=F,error=F,warning=F,comment=F}
+nymph_ANA_reg=zeroinfl(formula = ANApos ~ Percent_Forest_Cover |  Percent_Forest_Cover,
+                 data=nymphtestingdata,dist='negbin')
+nymph_Bmic_reg=zeroinfl(formula = Bmicpos ~ Percent_Forest_Cover |  Percent_Forest_Cover,
+                 data=nymphtestingdata,dist='negbin')
+nymph_Bmiya_reg=zeroinfl(formula = Bmiyapos ~ Percent_Forest_Cover |  Percent_Forest_Cover,
+                 data=nymphtestingdata,dist='negbin')
+```
+
+<br>
+
+Significance for adult ZINB models are shown below:
+```{r adulttable,echo=F,message=F,warning=F,comment=F}
+tab_model(adult_ANA_reg,adult_Bmic_reg,adult_Bmiya_reg,title = "Adult Regression Results",dv.labels = c("A. phagocytophilum","B. microti","B. miyamotoi"),show.r2 = F,show.ci=F,show.est = F,digits=2)
+```
+
+<br>
+
+Coefficient of adult <i> B. miyamotoi </i> model shown below:
+```{r adult_sig_coeff}
+adult_Bmiya_reg$coefficients$count
+```
+
+<br>
+
+Significance for nymphal ZINB models are shown below:
+```{r nymphtable,echo=F,message=F,warning=F,comment=F}
+tab_model(nymph_ANA_reg,nymph_Bmic_reg,nymph_Bmiya_reg,title = "Nymphal Regression Results",dv.labels = c("A. phagocytophilum","B. microti","B. miyamotoi"),show.r2 = F,show.ci = F,show.est = F,digits=2)
+```
+
+<br>
+
+Coefficient of statistically significant nymphal models shown below:
+
+<br>
+
+Nymphal <i> A. phagocyotphilum </i> zero-inflated model:
+```{r nymphANA_sig_coeff}
+nymph_ANA_reg$coefficients$zero
+```
+
+<br>
+
+Nymphal <i> B. microti </i> count model:
+```{r nymphBm_sig_coeff}
+nymph_Bmic_reg$coefficients$count
+```
+
+<br>
+
+Nymphal <i> B. miyamotoi </i> count model:
+```{r nymphBmiya_sig_coeff}
+nymph_Bmiya_reg$coefficients$count
+```
 # Conclusions
 
-[~200 words]
+Tickborne pathogen prevalence in NYS is an ever-increasing problem. NYSDOH Vector Ecology Laboratory tick sampling indicates that pathogen prevalence for <i> B. burgdorferi </i>, <i> A. phagocytophilum </i>, <i> B. microti </i>, and <i> B. miyamotoi </i> have been increasing over time. Increases in pathogen prevalence provides a warning for increased risk of tickborne disease for NYS citizens. Although the prevalence of each pathogen, and thus, risk for disease differs by county, the general trend indicates that tickborne disease will be an issue for years to come in NYS. The interactive map in this project provides a user-friendly ability to navigate publicly available data to determine the potential risk for tickborne pathogen exposure in your county. 
 
-Clear summary adequately describing the results and putting them in context. Discussion of further questions and ways to continue investigation.
+One extremely important factor in determining risk for tickborne pathogen exposure is tick habitat.< I. scapularis </i> prefer deciduous and mixed forest ecosystems, making tick prevention methods in these ecosystems an important topic for preventing tickborne disease in the future. This analysis aimed to determine if the percent of a county covered by these types of forest plays any role in pathogen prevalence rates. The method behind this thinking is that the more available area for tick populations to expand dually provides tickborne pathogens the ability to expand into these areas. Coincidentally, preliminary results from the correlation tests and ZINB modeling show that the percent of a county covered by mixed or deciduous forest is either not directly related to tickborne pathogen prevalence, or actually shows a decreased risk for pathogen prevalence. There are two likely explanations for these results. The first is that aggregating forest cover to large spatial areas (counties in this study), do not represent the microvariations in tick habitat that allow populations to proliferate. Smaller spatial scales may provide a more accurate representation of the relationship between land cover and pathogen prevalence. Another explanation is that there is sampling bias in these data. The NYSDOH is tasked with protecting the health of the public, and thus, sampling is generally conducted: 
+
+1. Where the greatest risk for tick-human interaction is.
+2. Where the density of tick populations is high enough to get a good sample size.
+
+The first bias would cause more data to be gathered around suburban areas due to the larger number of individuals at risk. Counties with more suburban areas will likely have a lower percentage of forest cover, thus biasing the data.
+
+The second bias would cause more data to be gathered in areas where tick populations are large enough for the purpose of sampling. Often times, this occurs in areas with forest edge and nearby woodlots. These types of areas represent microecosystems perfect for tick population expansion, thus, making sampling easier for NYSDOH staff.
+
+In summation, the two takeaways from this project are the following:
+
+1. Tick pathogen prevalence has been increasing over time in NYS.
+2. A more detailed analysis is required to examine the role forest cover plays with pathogen prevalence.
+
+<br>
 
 # References
 
-All sources are cited in a consistent manner
+Will add later.
