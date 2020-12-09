@@ -164,7 +164,8 @@ simpSpNYS=st_simplify(NYS,dTolerance=100)
 SpNYS=as(NYS,Class="Spatial")
 ```
 
-```{r county_subplots_setup,results='hide',message=FALSE, warning=F,echo=F}
+Further data cleaning in this code, view if necessary:
+```{r county_subplots_setup,results='hide',message=FALSE, warning=F,class.source = "fold-hide"}
 Ad_county_totpos = Adultnewdat1 %>%
         group_by(Year,Pathogen,County) %>%
         summarize(sum(Totpos))
@@ -235,26 +236,6 @@ All_county_groupings3=tidyr::expand(All_county_groupings2,Year,Pathogen,County,L
 
 All_county_groupings4=left_join(All_county_groupings3,All_county_groupings,by=c("Year","Pathogen","Life_Stage","County"))
 names(test_copy)[4]="Life_Stage"
-
-
-
-test1 = All_county_groupings4 %>%
-        nest(-County)
-
-test2 = test1 %>% mutate(plot = map2(data, County, 
-                             ~ggplot()+ 
-                                     geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7)+
-                                     geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7)+
-                                     geom_line(data=.x,aes(x=Year,y=percpos,color=Pathogen))+
-                                     geom_point(data=.x,aes(x=Year,y=percpos,color=Pathogen))+ scale_color_manual(name="Pathogen",values=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","#E41A1C","#377EB8","#4DAF4A","#984EA3"))+
-                                     geom_line(data=test_copy,aes(x=Year,y=Avg_pos,color=Pathogen,linetype="NYS Average Pathogen Prevalence"))+
-                                     scale_linetype_manual("",values = c(2,2,2,2,1,1,1,1))+
-                                     theme(axis.text.x = element_text(angle=65,vjust=.65))+
-                                     facet_wrap(~Life_Stage)+
-                                     scale_x_continuous(breaks=c(2008:2019))+
-                                     ylab("Pathogen Prevalence (%)")+
-                                     labs(caption="Solid lines indicate pathogen prevalence from sample specimens in County")+
-                                     ggtitle(glue("{.y}"))))
 ```
 
 The third and final data source is land use and land cover data from the 2016 National Land Cover Dataset, available at the following link: [NLCD](https://www.mrlc.gov/data/nlcd-2016-land-cover-conus). These data were downloaded using R-specific NLCD calls. The call was looped to iterate the data download for each county, which would then overwrite the previous county's data to conserve storage. The analysis was also grouped into this code, which will be explained later.
@@ -309,6 +290,32 @@ plot1=ggplot(data = All_groupings,aes(x=Year,y=percpos,color=Pathogen)) +
 
 The code to create an interactive map where each clicking each county displays a time-series graph comparing county-level pathogen rates to the NYS average is shown below:
 ```{r interactive, echo=TRUE,warning=FALSE,message=FALSE,error=F}
+test1 = All_county_groupings4 %>%
+        nest(-County)
+
+test2 = test1 %>% 
+  mutate(plot = map2(data, County, 
+                  ~ggplot()+ 
+                      geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7)+
+                      geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7)+
+                      geom_line(data=.x,aes(x=Year,y=percpos,color=Pathogen))+
+                      geom_point(data=.x,aes(x=Year,y=percpos,color=Pathogen))+
+                      scale_color_manual(name="Pathogen",
+                                         values=c("#E41A1C","#377EB8","#4DAF4A",
+                                                  "#984EA3","#E41A1C","#377EB8",
+                                                  "#4DAF4A","#984EA3"))+
+                      geom_line(data=test_copy,
+                                         aes(x=Year,y=Avg_pos,
+                                         color=Pathogen,
+                                         linetype="NYS Average Pathogen Prevalence"))+
+                      scale_linetype_manual("",values = c(2,2,2,2,1,1,1,1))+
+                      theme(axis.text.x = element_text(angle=65,vjust=.65))+
+                      facet_wrap(~Life_Stage)+
+                      scale_x_continuous(breaks=c(2008:2019))+
+                      ylab("Pathogen Prevalence (%)")+
+                labs(caption="Solid lines indicate pathogen prevalence from sample specimens in County")+
+                      ggtitle(glue("{.y}"))))
+
 County_Boundaries=st_transform(County_Boundaries,CRS("+proj=longlat +datum=WGS84"))
 names(County_Boundaries)[1]="County"
 test_new=left_join(County_Boundaries,test2,by='County')
