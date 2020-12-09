@@ -279,7 +279,9 @@ In order to visualize pathogen prevalence throughout NYS, the ggplot and leaflet
 ```{r makeplot1, echo=TRUE,warning=FALSE,message=FALSE,error=F}
 plot1=ggplot(data = All_groupings,aes(x=Year,y=percpos,color=Pathogen)) +
         geom_line() +
-        ggtitle(expression(paste("Time Series Graph of ", italic("Ixodes scapularis")," Infectivity Rates (NYS)",sep=""))) +
+        ggtitle(expression(paste("Time Series Graph of ",
+              italic("Ixodes scapularis"),
+              " Infectivity Rates (NYS)",sep=""))) +
         theme(axis.text.x = element_text(angle=65,vjust=.65)) +
         geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7) +
         geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7) +
@@ -298,9 +300,9 @@ test2 = test1 %>%
                   ~ggplot()+ 
                       geom_hline(yintercept = 0,linetype='solid',color='black',size=.5,alpha=.7)+
                       geom_vline(xintercept = 2008,linetype='solid',color='black',size=.5,alpha=.7)+
-                      geom_line(data=.x,aes(x=Year,y=percpos,color=Pathogen),position=dodge,size=.1)+
+                      geom_line(data=.x,aes(x=Year,y=percpos,color=Pathogen),position=dodge)+
                       geom_point(data=.x,aes(x=Year,y=percpos,color=Pathogen),
-                                 position=dodge)+
+                                 position=dodge,size=.85)+
                       scale_color_manual(name="Pathogen",
                                          values=c("#E41A1C","#377EB8","#4DAF4A",
                                                   "#984EA3","#E41A1C","#377EB8",
