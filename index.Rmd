@@ -1,9 +1,12 @@
 ---
-title: "Tickborne Pathogen Prevalence and Forest Cover in New York State"
+title: "Tick-borne Pathogen Prevalence and Forest Cover in New York State"
 author: Collin O'Connor
 always_allow_html: yes
 editor_options: 
   chunk_output_type: console
+output:
+  html_document:
+    code_folding: show
 ---
 <style>
 .leaflet-popup-content > img {
@@ -16,14 +19,14 @@ p {line-height: 2em;}
 # Introduction
 
 
-The deer tick or blacklegged tick (<i>Ixodes scapularis</i>) is the most medically relevant species of hard tick that in New York State (NYS). <i>I. scapularis</i> populations in NYS may carry a plethora of pathogens, including but not limited to:
+The deer tick or blacklegged tick (<i>Ixodes scapularis</i>) is the most medically relevant species of hard tick found in New York State (NYS). <i>I. scapularis</i> populations in NYS may carry a plethora of pathogens, including but not limited to:
 
-* <i>Borrelia burgdorferi</i> - the causitive agent of Lyme disease
-* <i>Anaplasma phagocytophilum</i> - the causitive agent of human granulocytic anaplasmosis
-* <i>Babesia microti</i> - the causitive agent of babesiosis in humans
-* <i>Borrelia miyamotoi</i> - causative of a relapsing tick fever 
+* <i>Borrelia burgdorferi</i> - the agent of Lyme disease [(1)](#reference1)<a name="reference1.1"></a>
+* <i>Anaplasma phagocytophilum</i> - the agent of human granulocytic anaplasmosis [(2)](#reference2)<a name="reference2.1"></a>
+* <i>Babesia microti</i> - the agent of babesiosis in humans [(3)](#reference3)<a name="reference3.1"></a> 
+* <i>Borrelia miyamotoi</i> - causative of hard tick relapsing tick fever [(4)](#reference4)<a name="reference4.1"></a>
 
-The prevalence of the above pathogens varies both spatially and temporally in NYS, which results in varying risk for NYS citizens. Because these pathogens are not transmitted from tick to tick transovarially, they are required to be maintained throughout populations of animal hosts in the various ecosystems of NYS. Data suggests that certain land use and land cover types are beneficial for populations of animals which maintain these pathogens, and potentially for the pathogen's themselves. This project aims to explore any trends between pathogen prevalence within <i>I. scapularis</i> at the county level and land use / land cover types in NYS.
+The prevalence of the above pathogens varies both spatially and temporally in NYS, which results in varying risk for NYS residents [(5)](#reference5)<a name="reference5.1"></a>. Because these pathogens are not transmitted from tick to tick transovarially, they are required to be maintained throughout populations of animal reservoir hosts in the various ecosystems of NYS. Data suggests that certain land use and land cover types are beneficial for populations of animals which maintain these pathogens [(4)](#reference4), and potentially for the pathogen's themselves [(6)](#reference6)<a name="reference6.1"></a>. This project aims to explore any trends between pathogen prevalence within <i>I. scapularis</i> at the county level and land use / land cover types in NYS.
 
 <br>
 
@@ -62,7 +65,7 @@ sessionInfo()
 
 ## Methods - Data Gathering
 
-The data for this project are gathered from three main sources. The first source is the New York State Department of Health (NYSDOH) Vector Ecology Laboratory's tick borne pathogen surveillance dataset. This dataset contains tick field surveillance data throughout NYS from 2008 - present, as well as corresponding PCR testing data for the four pathogens mentioned in the introduction. These data are spatially aggregated to the county level and are available online at the following links for [Nymphs](https://health.data.ny.gov/api/views/kibp-u2ip/rows.csv?accessType=DOWNLOAD&bom=true&query=select+*) and [Adults](https://health.data.ny.gov/api/views/vzbp-i2d4/rows.csv?accessType=DOWNLOAD&bom=true&query=select+*): These data were gathered into R using the following code:
+The data for this project are gathered from three main sources. The first source is the New York State Department of Health (NYSDOH) Vector Ecology Laboratory's tick borne pathogen surveillance dataset. This dataset contains host-seeking tick field surveillance data throughout NYS from 2008 - present, as well as corresponding molecular testing data for the four pathogens mentioned in the introduction. These data are spatially aggregated to the county level and are available online at the following links for [Nymphs](https://health.data.ny.gov/api/views/kibp-u2ip/rows.csv?accessType=DOWNLOAD&bom=true&query=select+*) and [Adults](https://health.data.ny.gov/api/views/vzbp-i2d4/rows.csv?accessType=DOWNLOAD&bom=true&query=select+*): These data were gathered into R using the following code:
 ```{R tick_data_load, echo=TRUE,warning=FALSE,message=FALSE}
 tdir=tempdir()
 adulturl <- "https://health.data.ny.gov/api/views/vzbp-i2d4/rows.csv?accessType=DOWNLOAD&bom=true&query=select+*"
@@ -75,20 +78,8 @@ Nymphdata <- read_csv(paste(tdir,"/Nymphdata.csv",sep=""))
 Adultdata <- read_csv(paste(tdir,"/Adultdata.csv",sep=""))
 ```
 
-The second data source is county-level shapefiles from NYS GIS clearinghouse, available at the following link: [NYS GIS Clearinghouse]("http://gis.ny.gov/gisdata/fileserver/?DSID=927&file=NYS_Civil_Boundaries.shp.zip"). These data were read into R using the following code:
-```{r NYSshpfiles,echo=T,results='hide',warning=F,message=F,error=F}
-shpurl="http://gis.ny.gov/gisdata/fileserver/?DSID=927&file=NYS_Civil_Boundaries.shp.zip"
-if(file.exists(paste(tdir,"/NYS_Civil_Boundaries_SHP/Counties_Shoreline.shp",sep=""))==FALSE){
-download.file(shpurl, destfile = file.path(tdir,"Boundaries.zip"))
-unzip(file.path(tdir,"Boundaries.zip"),exdir = tdir)}
-Cnt=read_sf(paste(tdir,"/NYS_Civil_Boundaries_SHP/Counties_Shoreline.shp",sep=""))
-County_Boundaries = Cnt[,c(1,18)]
-NYS = st_union(County_Boundaries)
-simpSpNYS=st_simplify(NYS,dTolerance=100)
-SpNYS=as(NYS,Class="Spatial")
-```
-
-```{r, average_plotsetup,results='hide',message=FALSE,warning=F,echo=F}
+These data were cleaned using the code shown in this hidden code chunk. The code to preform this data cleaning is not elegant and thus was hidden to save space. Feel free to view if necessary.
+```{r, average_plotsetup,results='hide',message=FALSE,warning=F,echo=T,class.source = "fold-hide"}
 names(Adultdata)[6]="Total_Tested"
 Adult_BBdat=Adultdata[,1:7]
 Adult_BBdat$Pathogen="Borrelia burgdorferi"
@@ -158,6 +149,19 @@ names(Nymphgroupings)[2]="Pathogen"
 Nymphgroupings$`Life Stage`="Nymph"
 
 All_groupings=rbind(Adultgroupings,Nymphgroupings)
+```
+
+The second data source is county-level shapefiles from NYS GIS clearinghouse, available at the following link: [NYS GIS Clearinghouse]("http://gis.ny.gov/gisdata/fileserver/?DSID=927&file=NYS_Civil_Boundaries.shp.zip"). These data were read into R using the following code:
+```{r NYSshpfiles,echo=T,results='hide',warning=F,message=F,error=F}
+shpurl="http://gis.ny.gov/gisdata/fileserver/?DSID=927&file=NYS_Civil_Boundaries.shp.zip"
+if(file.exists(paste(tdir,"/NYS_Civil_Boundaries_SHP/Counties_Shoreline.shp",sep=""))==FALSE){
+download.file(shpurl, destfile = file.path(tdir,"Boundaries.zip"))
+unzip(file.path(tdir,"Boundaries.zip"),exdir = tdir)}
+Cnt=read_sf(paste(tdir,"/NYS_Civil_Boundaries_SHP/Counties_Shoreline.shp",sep=""))
+County_Boundaries = Cnt[,c(1,18)]
+NYS = st_union(County_Boundaries)
+simpSpNYS=st_simplify(NYS,dTolerance=100)
+SpNYS=as(NYS,Class="Spatial")
 ```
 
 ```{r county_subplots_setup,results='hide',message=FALSE, warning=F,echo=F}
@@ -405,7 +409,7 @@ plot2
 General takeaways from the interactive county level map are the following:
 
 1. Rates in the capital district and metropolitan areas of NYS are generally higher than the NYS average, and also have more complete data.
-2. The north county (Adirondack region) has generally prevalence numbers (likely due to low numbers of tick populations).
+2. The north county (Adirondack region) has generally low prevalence numbers (likely due to low numbers of tick populations).
 3. In counties with complete data, pathogen prevalence generally has risen over time.
 
 <br>
@@ -427,6 +431,8 @@ tm_shape(choro)+
   tm_scale_bar(position=c('left','bottom'))+
   tm_layout(main.title = "Area Covered by Mixed/Deciduous Forest",main.title.position = 'center')
 ```
+
+The main takeaway from the above map is that the counties with the highest percentage of forest cover are those counties in the Adirondack and Catskill mountain regions. This is important to note, because these areas are at higher elevation, which is generally poorer habitat for<i> I. scapularis </i>, resulting in lower density. This phenomenon has the potential to alter the results of pathogen prevalence, which will be shown later.
 
 <br>
 
@@ -460,7 +466,7 @@ hist(adulttestingdata$`B. miyamotoi (%)`,
      main=expression(paste("Histogram of ",italic("B. miyamotoi")," Prevalence",sep="")))
 ```
 
-<i>B. burgdorferi</i> appears to be the only normally distributed pathogen data among adults. This likely occurs because it has the highest pathogen prevalence and is endemic throughout NYS. Prevalence among all other pathogens appears to be zero-inflated, likely because numbers are low. Lower numbers makes the pathogen data approach a Poisson/Negative Binomial distribution because it is count data.
+<i>B. burgdorferi</i> appears to be the only normally distributed pathogen data among adult ticks. This likely occurs because it has the highest pathogen prevalence and is endemic throughout NYS. Prevalence among all other pathogens appears to be zero-inflated, likely because the number of positives are low. Lower numbers make the pathogen data approach a Poisson/negative binomial distribution because it is count data.
 
 ```{r Nymph_prev_viz,message=FALSE, echo=F}
 par(mfrow=c(2,2))
@@ -478,7 +484,7 @@ hist(nymphtestingdata$`B. miyamotoi (%)`,
      main=expression(paste("Histogram of ",italic("B. miyamotoi")," Prevalence",sep="")))
 ```
 
-Similar to adults, <i>B. burgdorferi</i> prevalence among nymphs near normal. All others approach Poisson/Negative Binomial distribution. Due to the normality of <i> B. burgdorferi </i>, Pearson correlation tests were used to examine the relationship between percent mixed/deciduous forest cover and <i> B. burgdorferi </i> prevalence.
+Similar to adults ticks, <i>B. burgdorferi</i> prevalence among nymphs is near a normal distribution. All others approach Poisson/negative binomial distribution. Due to the normality of <i> B. burgdorferi </i>, Pearson correlation tests were used to examine the relationship between percent mixed/deciduous forest cover and <i> B. burgdorferi</i> prevalence.
 
 Adult test is shown below:
 ```{r Burgdorferi_correlations,message=FALSE, echo=F}
@@ -505,7 +511,7 @@ nymphtestingdata$Bmicpos=round((nymphtestingdata$`B. microti (%)`/100)*nymphtest
 nymphtestingdata$Bmiyapos=round((nymphtestingdata$`B. miyamotoi (%)`/100)*nymphtestingdata$Total_Tested)
 ```
 
-To examine the relationship between percent mixed/deciduous forest cover and <i> A. phagocytophilum </i>, <i> B. microti </i>, and <i> B. miyamotoi </i> prevalence, zero-inflated negative binomial (ZINB) models were used. The dependent variable for each count and zero-inflated model was the count of a particular pathogen, where the independent variable was percent mixed/deciduous forest cover. Code to create each model for both adults and nymphs is shown below:
+To examine the relationship between percent mixed/deciduous forest cover and<i> A. phagocytophilum </i><i> B. microti </i>, and <i> B. miyamotoi </i> prevalence, zero-inflated negative binomial (ZINB) models were used. The dependent variable for each count and zero-inflated model was the count of samples testing positive for a particular pathogen, where the independent variable was percent mixed/deciduous forest cover. Code to create each model for both adults and nymphs is shown below:
 ```{r adultregression,results='hide',message=F,error=F,warning=F}
 adult_ANA_reg=zeroinfl(formula = ANApos ~ Percent_Forest_Cover |  Percent_Forest_Cover,
                  data=adulttestingdata,dist='negbin')
@@ -571,12 +577,12 @@ nymph_Bmiya_reg$coefficients$count
 ```
 # Conclusions
 
-Tickborne pathogen prevalence in NYS is an ever-increasing problem. NYSDOH Vector Ecology Laboratory tick sampling indicates that pathogen prevalence for <i> B. burgdorferi </i>, <i> A. phagocytophilum </i>, <i> B. microti </i>, and <i> B. miyamotoi </i> have been increasing over time. Increases in pathogen prevalence provides a warning for increased risk of tickborne disease for NYS citizens. Although the prevalence of each pathogen, and thus, risk for disease differs by county, the general trend indicates that tickborne disease will be an issue for years to come in NYS. The interactive map in this project provides a user-friendly ability to navigate publicly available data to determine the potential risk for tickborne pathogen exposure in your county. 
+Tick-borne pathogen prevalence in NYS is an ever-increasing problem. NYSDOH Vector Ecology Laboratory tick sampling indicates that pathogen prevalence of <i> B. burgdorferi </i>, <i> A. phagocytophilum </i>, <i> B. microti </i>, and <i> B. miyamotoi </i> in host-seeking ticks have been increasing over time. Increases in pathogen prevalence provides a warning for increased risk of tick-borne disease for NYS citizens. Although the prevalence of each pathogen, and thus, risk for disease differs by county, the general trend indicates that tick-borne disease will be an issue for years to come in NYS. The interactive map in this project provides a user-friendly interface to navigate publicly available data and to determine the potential risk for tick-borne pathogen exposure in your county. 
 
-One extremely important factor in determining risk for tickborne pathogen exposure is tick habitat.< I. scapularis </i> prefer deciduous and mixed forest ecosystems, making tick prevention methods in these ecosystems an important topic for preventing tickborne disease in the future. This analysis aimed to determine if the percent of a county covered by these types of forest plays any role in pathogen prevalence rates. The method behind this thinking is that the more available area for tick populations to expand dually provides tickborne pathogens the ability to expand into these areas. Coincidentally, preliminary results from the correlation tests and ZINB modeling show that the percent of a county covered by mixed or deciduous forest is either not directly related to tickborne pathogen prevalence, or actually shows a decreased risk for pathogen prevalence. There are two likely explanations for these results. The first is that aggregating forest cover to large spatial areas (counties in this study), do not represent the microvariations in tick habitat that allow populations to proliferate. Smaller spatial scales may provide a more accurate representation of the relationship between land cover and pathogen prevalence. Another explanation is that there is sampling bias in these data. The NYSDOH is tasked with protecting the health of the public, and thus, sampling is generally conducted: 
+One extremely important factor in determining risk for tick-borne pathogen exposure is tick habitat.< I. scapularis </i> prefer deciduous and mixed forest ecosystems, making tick prevention methods in these ecosystems an important topic for reducing tick-borne disease risk in the future. This analysis aimed to determine if the percent of a county covered by these types of forest plays any role in pathogen prevalence rates. The method behind this thinking is that the more available area for tick populations to expand dually provides tick-borne pathogens the ability to expand into these areas. Coincidentally, preliminary results from the correlation tests and ZINB modeling show that the percent of a county covered by mixed or deciduous forest is either not directly related to tick-borne pathogen prevalence, or actually shows a decreased risk for pathogen prevalence. There are a few likely explanations for these results. The first is that aggregating forest cover to large spatial areas (counties in this study), do not represent the microvariations in tick habitat that allow populations to proliferate. Smaller spatial scales may provide a more accurate representation of the relationship between land cover and pathogen prevalence. A possible cause of the mixed results in this study are due to the counties with the highest forest cover being at higher elevations. <i>I. scapularis</i> density generally decreases as elevation increases, likely due to host species ranges. This can cause some confounding between forest cover and elevation, confusing the effect of each variable on tick density. A final explanation is that there is sampling bias in these data. The NYSDOH is tasked with protecting the health of the public, and thus, sampling is generally conducted: 
 
 1. Where the greatest risk for tick-human interaction is.
-2. Where the density of tick populations is high enough to get a good sample size.
+2. Where the density of tick populations is high enough to obtain sufficient sample size.
 
 The first bias would cause more data to be gathered around suburban areas due to the larger number of individuals at risk. Counties with more suburban areas will likely have a lower percentage of forest cover, thus biasing the data.
 
@@ -585,10 +591,21 @@ The second bias would cause more data to be gathered in areas where tick populat
 In summation, the two takeaways from this project are the following:
 
 1. Tick pathogen prevalence has been increasing over time in NYS.
-2. A more detailed analysis is required to examine the role forest cover plays with pathogen prevalence.
+2. Tick pathogen prevalence varies spatially throughout NYS.
+3. A more detailed analysis is required to examine the role forest cover plays with pathogen prevalence.
 
 <br>
 
 # References
 
-Will add later.
+<a name="reference1"></a> [1.)](#reference1.1) Chen H, White DJ, Caraco TB, Stratton HH. Epidemic and Spatial Dynamics of Lyme Disease in New York State, 1990–2000. J Med Entomol. 2005;42(5):10.
+
+<a name="reference2"></a> [2.)](#reference2.1) Chen S-M, Dumler JS, Bakken JS, Walker DH. Identificatin of a Granulocytotropic  Ehrlichia  Species as the Etiologic Agent of Human Disease. J Clin Microbiol. 1994;32(3):589-595.
+
+<a name="reference3"></a> [3.)](#reference3.1) Spielman A, Wilson ML, Levine JF, Piesman J. Ecology of Ixodes Dammini-Borne Human Babesiosis and Lyme Disease. Annu Rev Entomol. 1985;30(1):439-460. doi:10.1146/annurev.en.30.010185.002255
+
+<a name="reference4"></a> [4.)](#reference4.1) Piedmonte N, Shaw SB, Prusinski M, Fierke MK. Landscape Features Associated With Blacklegged Tick (Acari: Ixodidae) Density and Tick-Borne Pathogen Prevalence at Multiple Spatial Scales in Central New York State. J Med Entomol. 2018;55(6):1496-1508. doi:10.1093/jme/tjy111
+
+<a name="reference5"></a> [5.)](#reference5.1) Joseph JT, John M, Visintainer P, Wormser GP. Increasing incidence and changing epidemiology of babesiosis in the Hudson Valley region of New York State: 2009-2016. Diagn Microbiol Infect Dis. 2020;96:1-3.
+
+<a name="reference6"></a> [6.)](#reference6.1) Prusinski MA, Chen H, Drobnack JM, et al. Habitat Structure Associated with Borrelia burgdorferi Prevalence in Small Mammals in New York State. Environ Entomol. 2006;35(2):308-319.
